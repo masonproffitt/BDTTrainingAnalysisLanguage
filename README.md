@@ -21,9 +21,9 @@ Non-Goals:
 - This version is not trying to be religious about any particular concept. This is a proof of principle.
 - Not trying to hide some of the boiler plate in this version.
 - Not (yet) attempting to run on a farm or large number of files, but will attempt to keep the design in mind because to be useful it clearly will have to.
+- Everything is in a single repro - no attempt is made at building a separate library. Not yet. Eventually this should be multiple small useful packages.
 
-Above all, this is an experiment. It is based off many things learned in the 
-[LINTQToROOT](https://github.com/gordonwatts/LINQtoROOT) project.
+Above all, this is an experiment. It is based off many things learned in the [LINTQToROOT](https://github.com/gordonwatts/LINQtoROOT) project.
 
 ## Usage
 

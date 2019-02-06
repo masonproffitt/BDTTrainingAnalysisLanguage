@@ -3,5 +3,6 @@
         "EXOT",
         "LINTQ",
         "numpy"
-    ]
+    ],
+    "python.pythonPath": "I:\\Anaconda3\\python.exe"
 }

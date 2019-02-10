@@ -3,6 +3,8 @@
 #include <xAODEventInfo/EventInfo.h>
 #include <xAODJet/JetContainer.h>
 
+#include <TTree.h>
+
 query :: query (const std::string& name,
                                   ISvcLocator *pSvcLocator)
     : EL::AnaAlgorithm (name, pSvcLocator)
@@ -20,6 +22,12 @@ StatusCode query :: initialize ()
   // beginning on each worker node, e.g. create histograms and output
   // trees.  This method gets called before any input files are
   // connected.
+
+  // Book a TTree
+  ANA_CHECK (book (TTree ("analysis", "My analysis ntuple")));
+  auto mytree = tree ("analysis");
+  mytree->Branch("JetPt", &_jetPt);
+
   return StatusCode::SUCCESS;
 }
 
@@ -41,7 +49,9 @@ StatusCode query :: execute ()
   ANA_MSG_INFO ("execute(): number of jets = " << jets->size());
 
   for (auto jet : *jets) {
-    ANA_MSG_INFO ("execute(): jet pt = " << (jet->pt() * 0.001) << " GeV"); // just to print out something
+      _jetPt = jet->pt();
+      //ANA_MSG_INFO ("execute(): jet pt = " << (jet->pt() * 0.001) << " GeV"); // just to print out something
+      tree("analysis")->Fill();
   }
 
   return StatusCode::SUCCESS;

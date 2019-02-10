@@ -19,6 +19,6 @@ At some point this will all be out of date as it will be generated in parts.
 
 To run this test do the following:
 
-- ``docker run --rm -v  I:/gwatts/Code/calratio2019/BDTTrainingAnalysisLanguage/R21Code:/scripts G:/mc16_13TeV:/data  atlas/analysisbase:21.2.62``
+- ``docker run --rm -v I:/gwatts/Code/calratio2019/BDTTrainingAnalysisLanguage/R21Code:/scripts -v I:/gwatts/Code/calratio2019/BDTTrainingAnalysisLanguage:/results -v G:/mc16_13TeV:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh``
 
 To run interactive (for testing, etc.) add the flags ``-it``.

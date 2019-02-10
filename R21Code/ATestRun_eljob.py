@@ -35,6 +35,7 @@ alg = createAlgorithm ( 'query', 'AnalysisAlg' )
 
 # Add our algorithm to the job
 job.algsAdd( alg )
+job.outputAdd (ROOT.EL.OutputStream ('ANALYSIS'))
 
 # Run the job using the direct driver.
 driver = ROOT.EL.DirectDriver()

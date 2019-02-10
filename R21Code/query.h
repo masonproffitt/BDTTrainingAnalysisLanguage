@@ -15,6 +15,9 @@ public:
   virtual StatusCode finalize () override;
 
 private:
+  // Variables to write out to the tree, one entry per jet.
+  float _jetPt;
+
   // Configuration, and any other types of variables go here.
   //float m_cutValue;
   //TTree *m_myTree;

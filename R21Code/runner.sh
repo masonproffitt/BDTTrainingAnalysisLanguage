@@ -1,3 +1,5 @@
+#!/bin/env bash
+
 # Meant to be invokved in an ATLAS R21 analysis container.
 # This follows the tutorial from https://atlassoftwaredocs.web.cern.ch/ABtutorial/release_setup/
 
@@ -119,3 +121,6 @@ source x86_64-slc6-gcc62-opt/setup.sh
 # Do the run
 cd ../run
 ATestRun_eljob.py --submission-dir=bogus
+
+# Place the output file where it belongs
+cp ./bogus/data-ANALYSIS/data.root /results

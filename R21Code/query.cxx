@@ -45,7 +45,7 @@ StatusCode query :: execute ()
 
   // Loop over the jets, and print out some nice info.
   const xAOD::JetContainer* jets = 0;
-  ANA_CHECK (evtStore()->retrieve( jets, "AntiKt4EMTopoJets"));
+  ANA_CHECK (evtStore()->retrieve( jets, "AnalysisJets_NOSYS"));
   ANA_MSG_INFO ("execute(): number of jets = " << jets->size());
 
   for (auto jet : *jets) {

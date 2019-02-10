@@ -7,11 +7,11 @@ class AtlasEventStream(EventStream):
     r"""
     A stream of events from an ATLAS xAOD file.
     """
-    def __init__(self, ds):
-        EventStream.__init__(self, ds)
+    def __init__(self, evt_stream):
+        EventStream.__init__(self, evt_stream._url)
 
     def get_executor(self):
         r"""
         Return the executor for this xAOD file from ATLAS
         """
-        return atlas_xaod_executor()
+        return atlas_xaod_executor(self._ds)

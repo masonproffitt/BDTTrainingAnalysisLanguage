@@ -2,8 +2,8 @@
 from atlaslib.AtlasEventStream import AtlasEventStream
 
 class EventDataSet:
-    def __init__ (self, args):
-        self._url = args[0]
+    def __init__ (self, url):
+        self._url = url
 
     def AsATLASEvents(self):
         r"""

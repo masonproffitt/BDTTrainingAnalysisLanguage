@@ -3,7 +3,8 @@
         "EXOT",
         "LINTQ",
         "numpy",
-        "pythonic"
+        "pythonic",
+        "shutil"
     ],
     "python.pythonPath": "I:\\Anaconda3\\python.exe"
 }

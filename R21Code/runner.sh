@@ -118,9 +118,10 @@ cmake ../source
 make
 source x86_64-slc6-gcc62-opt/setup.sh
 
-# Do the run
-cd ../run
-ATestRun_eljob.py --submission-dir=bogus
+# Do the run.
+# TODO: The first line should work, but does not for some odd reason. 
+#ATestRun_eljob.py --submission-dir=bogus
+python ../source/analysis/share/ATestRun_eljob.py --submission-dir=bogus
 
 # Place the output file where it belongs
 cp ./bogus/data-ANALYSIS/data.root /results

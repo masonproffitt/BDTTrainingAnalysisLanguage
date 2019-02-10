@@ -21,4 +21,4 @@ To run this test do the following:
 
 - ``docker run --rm -v I:/gwatts/Code/calratio2019/BDTTrainingAnalysisLanguage/R21Code:/scripts -v I:/gwatts/Code/calratio2019/BDTTrainingAnalysisLanguage:/results -v G:/mc16_13TeV:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh``
 
-To run interactive (for testing, etc.) add the flags ``-it``.
+To run interactive (for testing, etc.) add the flags ``-it``, and remove the ``/scripts/runner.sh``. When the container starts up, you can then source the ``runner.sh`` file to have it correctly setup the release, etc.

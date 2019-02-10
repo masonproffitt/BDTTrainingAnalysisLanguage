@@ -40,4 +40,3 @@ Tested on:
 ## Implementation
 
 This will have to have C++ parts and Python (numpy) parts.
-

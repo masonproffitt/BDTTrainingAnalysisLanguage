@@ -4,7 +4,8 @@
         "LINTQ",
         "numpy",
         "pythonic",
-        "shutil"
+        "shutil",
+        "systematics"
     ],
     "python.pythonPath": "I:\\Anaconda3\\python.exe"
 }

@@ -19,7 +19,7 @@ import os
 sh = ROOT.SH.SampleHandler()
 sh.setMetaString( 'nc_tree', 'CollectionTree' )
 inputFilePath = '/data'
-ROOT.SH.ScanDir().filePattern( 'AOD.16300985._000011.pool.root.1' ).scan( sh, inputFilePath )
+ROOT.SH.ScanDir().filePattern( '{{data_file_name}}' ).scan( sh, inputFilePath )
 sh.printContent()
 
 # Create an EventLoop job.

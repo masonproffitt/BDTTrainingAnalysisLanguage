@@ -8,6 +8,9 @@ class ObjectStream:
         self._parent = parent
         pass
     
+    def fill_template_dict(self, d):
+        if self._parent:
+            self._parent.fill_template_dict(d)
     
     def SelectMany(self, func):
         r"""

@@ -32,7 +32,9 @@ Platform requirements:
 
 - Python 3.7 (not sure exactly what version, but this is the version it was developed under)
 - Docker (really should move to singularity if possible)
-- pip install uproot
+- pip install uproot jinja2
+  - jinja2 is already part of anaconda3
+
 
 Tested on:
 

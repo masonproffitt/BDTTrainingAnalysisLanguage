@@ -32,6 +32,7 @@ Platform requirements:
 
 - Python 3.7 (not sure exactly what version, but this is the version it was developed under)
 - Docker (really should move to singularity if possible)
+- pip install uproot
 
 Tested on:
 

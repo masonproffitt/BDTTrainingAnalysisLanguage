@@ -13,6 +13,6 @@ events = f.AsATLASEvents()
 jet_pts = events.SelectMany(lambda e: e.Jets).Calibrate().Select(lambda j: j.pT)
 
 # Save it to a dataframe
-training_df = jet_pts.AsPandasDF().value()
+training_df = jet_pts.AsPandasDF(columns=['JetPt']).value()
 
 print (training_df)

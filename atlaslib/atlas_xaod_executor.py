@@ -22,7 +22,7 @@ class atlas_xaod_executor:
         """
         # First thing to do is to scan the ast for template replacement items.
         info={}
-        ast.fill_template_dict(info)
+        #ast.fill_template_dict(info)
 
         # Create a temp directory in which we can run everything.
         with tempfile.TemporaryDirectory() as local_run_dir:

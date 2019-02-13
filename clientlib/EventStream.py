@@ -2,15 +2,11 @@
 from clientlib.ObjectStream import ObjectStream
 
 class EventStream(ObjectStream):
-    def __init__(self, ds):
+    def __init__(self, ds_ast):
         r"""
         Keep a tag on the actual event dataset we are representing!
-        """
-        ObjectStream.__init__(self, None)
-        self._ds = ds
 
-    def get_executor(self):
-        r"""
-        Return the executor for this stream
+        ds_ast is the source ast that contains the input dataset to be
+        processed.
         """
-        raise BaseException("Event streams must have an associated executor")
+        ObjectStream.__init__(self, ds_ast)

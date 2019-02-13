@@ -15,6 +15,9 @@ class atlas_file_event_stream_ast (base_ast):
     def get_executor(self):
         return atlas_xaod_executor(self._ds)
 
+    def visit_ast(self, visitor):
+        visitor.visit_atlas_file_event_stream_ast(self)
+
 class AtlasEventStream(EventStream):
     r"""
     A stream of events from an ATLAS xAOD file.

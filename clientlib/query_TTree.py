@@ -6,3 +6,6 @@ class ttree_terminal_ast (base_ast):
         base_ast.__init__(self, source_ast)
         self._column_names = column_names
         self._filename = output_filename
+
+    def visit_ast (self, visitor):
+        visitor.visit_ttree_terminal_ast(self)

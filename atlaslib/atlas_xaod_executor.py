@@ -4,9 +4,23 @@ from shutil import copyfile
 import os
 from urllib.parse import urlparse
 import jinja2
+from clientlib.query_ast import query_ast_vistor_base 
 
 import pandas as pd
 import uproot
+
+class query_ast_visitor(query_ast_vistor_base):
+    r"""
+    Drive the conversion to C++ of the top level query
+    """
+    def visit_panads_df_ast (self, ast):
+        ast._source.visit_ast(self)
+
+    def visit_ttree_terminal_ast (self, ast):
+        ast._source.visit_ast(self)
+
+    def visit_atlas_file_event_stream_ast(self, ast):
+        pass
 
 class atlas_xaod_executor:
     def __init__ (self, dataset):
@@ -20,9 +34,9 @@ class atlas_xaod_executor:
         r"""
         Evaluate the ast over the file that we have been asked to run over
         """
-        # First thing to do is to scan the ast for template replacement items.
-        info={}
-        #ast.fill_template_dict(info)
+        # Visit the AST to generate the code
+        qv = query_ast_visitor()
+        ast.visit_ast(qv)
 
         # Create a temp directory in which we can run everything.
         with tempfile.TemporaryDirectory() as local_run_dir:
@@ -32,6 +46,7 @@ class atlas_xaod_executor:
             datafile = netloc + path
             datafile_dir = os.path.dirname(datafile)
             datafile_name = os.path.basename(datafile)
+            info = {}
             info['data_file_name'] = datafile_name
 
             # Next, copy over and fill the template files

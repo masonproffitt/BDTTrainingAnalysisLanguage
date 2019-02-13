@@ -4,15 +4,21 @@ from shutil import copyfile
 import os
 from urllib.parse import urlparse
 import jinja2
-from clientlib.query_ast import query_ast_vistor_base 
+from clientlib.query_ast import query_ast_visitor_base
+from atlaslib.generated_code import generated_code
+import atlaslib.statement as statement
 
 import pandas as pd
 import uproot
 
-class query_ast_visitor(query_ast_vistor_base):
+class query_ast_visitor(query_ast_visitor_base):
     r"""
     Drive the conversion to C++ of the top level query
     """
+
+    def __init__ (self):
+        self._gc = generated_code()
+
     def visit_panads_df_ast (self, ast):
         ast._source.visit_ast(self)
 
@@ -21,6 +27,13 @@ class query_ast_visitor(query_ast_vistor_base):
 
     def visit_atlas_file_event_stream_ast(self, ast):
         pass
+
+    def visit_select_many_ast(self, ast):
+        # Do the visit of the parent stuff first to make sure everything is ready.
+        query_ast_visitor_base.visit_select_many_ast(self, ast)
+
+        # Next, we know we are accessing Jets (just because), so here we want to emit a loop over jets.
+        self._gc.add_statement(statement.loop("jet", "*jets"))
 
 class atlas_xaod_executor:
     def __init__ (self, dataset):

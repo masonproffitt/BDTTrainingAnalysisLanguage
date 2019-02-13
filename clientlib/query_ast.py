@@ -51,7 +51,7 @@ class select_ast (base_ast):
     def visit_ast(self, visitor):
         visitor.visit_select_ast (self)
 
-class query_ast_vistor_base:
+class query_ast_visitor_base:
     r"""
     The base of the visitor call-back set.
     """

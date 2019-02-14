@@ -24,9 +24,12 @@ StatusCode query :: initialize ()
   // connected.
 
   // Book a TTree
-  ANA_CHECK (book (TTree ("analysis", "My analysis ntuple")));
-  auto mytree = tree ("analysis");
-  mytree->Branch("JetPt", &_jetPt);
+  // ANA_CHECK (book (TTree ("analysis", "My analysis ntuple")));
+  // auto mytree = tree ("analysis");
+  // mytree->Branch("JetPt", &_jetPt);
+  {% for l in book_code %}
+  {{l}}
+  {% endfor %}
 
   return StatusCode::SUCCESS;
 }
@@ -48,11 +51,15 @@ StatusCode query :: execute ()
   ANA_CHECK (evtStore()->retrieve( jets, "AntiKt4EMTopoJets")); // Make 'AnalysisJets_NOSYS' if systematics & calibration are being run
   ANA_MSG_INFO ("execute(): number of jets = " << jets->size());
 
-  for (auto jet : *jets) {
-      _jetPt = jet->pt();
-      //ANA_MSG_INFO ("execute(): jet pt = " << (jet->pt() * 0.001) << " GeV"); // just to print out something
-      tree("analysis")->Fill();
-  }
+  // for (auto jet : *jets) {
+  //     _jetPt = jet->pt();
+  //     //ANA_MSG_INFO ("execute(): jet pt = " << (jet->pt() * 0.001) << " GeV"); // just to print out something
+  //     tree("analysis")->Fill();
+  // }
+
+  {% for l in query_code %}
+  {{l}}
+  {% endfor %}
 
   return StatusCode::SUCCESS;
 }

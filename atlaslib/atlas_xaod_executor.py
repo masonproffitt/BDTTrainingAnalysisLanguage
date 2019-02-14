@@ -19,11 +19,35 @@ class query_ast_visitor(query_ast_visitor_base):
     def __init__ (self):
         self._gc = generated_code()
 
+    def emit_query(self, e):
+        'Emit the parsed lines'
+        self._gc.emit_query_code(e)
+
+    def emit_book(self, e):
+        'Emit the parsed lines'
+        self._gc.emit_book_code(e)
+
     def visit_panads_df_ast (self, ast):
         ast._source.visit_ast(self)
 
     def visit_ttree_terminal_ast (self, ast):
+        'We need to emit the code to generate a TTree as output'
+
+        # For each incoming variable, we need to declare something we are going to write.
+        self._gc.declare_class_variable ('float', '_jetPt')
+
+        # Next, emit the booking code
+        self._gc.add_book_statement(statement.book_ttree("analysis", [('JetPt', '_jetPt')]))
         ast._source.visit_ast(self)
+
+        # Next, fill the variable with something
+        self._gc.add_statement(statement.set_var("_jetPt", 'jet->pt()'))
+        
+        # And trigger a fill!
+        self._gc.add_statement(statement.ttree_fill("analysis"))
+
+        # And we are a terminal, so pop off the block.
+        self._gc.pop_scope()
 
     def visit_atlas_file_event_stream_ast(self, ast):
         pass
@@ -32,8 +56,30 @@ class query_ast_visitor(query_ast_visitor_base):
         # Do the visit of the parent stuff first to make sure everything is ready.
         query_ast_visitor_base.visit_select_many_ast(self, ast)
 
+        # Look at the selection function. We have to determine what type of collection it is,
+        # and make sure it is available for us to loop over.
+        self._gc.add_statement(statement.xaod_get_collection("AntiKt4EMTopoJets", "jets"))
+
         # Next, we know we are accessing Jets (just because), so here we want to emit a loop over jets.
-        self._gc.add_statement(statement.loop("jet", "*jets"))
+        self._gc.add_statement(statement.loop("*jets", "jet"))
+
+class cpp_source_emitter:
+    def __init__(self):
+        self._lines_of_query_code = []
+        self._indent_level = 0
+
+    def add_line (self, l):
+        'Add a line of code, automatically deal with the indent'
+        if l == '}':
+            self._indent_level -= 1
+
+        self._lines_of_query_code += ["{0}{1}".format("  " * self._indent_level, l)]
+
+        if l == '{':
+            self._indent_level += 1
+
+    def lines_of_query_code (self):
+        return self._lines_of_query_code
 
 class atlas_xaod_executor:
     def __init__ (self, dataset):
@@ -47,9 +93,14 @@ class atlas_xaod_executor:
         r"""
         Evaluate the ast over the file that we have been asked to run over
         """
+
         # Visit the AST to generate the code
         qv = query_ast_visitor()
         ast.visit_ast(qv)
+        query_code = cpp_source_emitter()
+        qv.emit_query(query_code)
+        book_code = cpp_source_emitter()
+        qv.emit_book(book_code)
 
         # Create a temp directory in which we can run everything.
         with tempfile.TemporaryDirectory() as local_run_dir:
@@ -61,6 +112,8 @@ class atlas_xaod_executor:
             datafile_name = os.path.basename(datafile)
             info = {}
             info['data_file_name'] = datafile_name
+            info['query_code'] = query_code.lines_of_query_code()
+            info['book_code'] = book_code.lines_of_query_code()
 
             # Next, copy over and fill the template files
             template_dir = "./R21Code"
@@ -78,6 +131,7 @@ class atlas_xaod_executor:
             # Now use docker to run this mess
             docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(local_run_dir, datafile_dir)
             os.system(docker_cmd)
+            os.system("type {0}\\query.cxx".format(local_run_dir))
 
             # Extract the result.
             output_file = "file://{0}/data.root".format(local_run_dir)

@@ -25,7 +25,7 @@ class xAOD_event_expression_parser(ast.NodeVisitor):
         del self._var_dict[lambda_node.args.args[0].arg]
 
     def resolve_id (self, id):
-        'Look up the  in our local dict'
+        'Look up the in our local dict'
         return self._var_dict[id] if id in self._var_dict else id
 
     def visit_Call(self, call_node):

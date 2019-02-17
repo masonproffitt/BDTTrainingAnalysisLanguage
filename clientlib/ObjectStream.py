@@ -22,14 +22,6 @@ class ObjectStream:
         """
         return ObjectStream(query_ast.select_many_ast(self._ast, ast.parse(func)))
 
-    def Calibrate(self):
-        r"""
-        Performs calibration on a stream of objects. I'd say this belonged in a
-        client lib.
-        """
-        # Eventually, we have to call some code to make a calibration
-        return self
-
     def Select(self, f):
         r"""
         User wants to transform a single object at a time in this stream.

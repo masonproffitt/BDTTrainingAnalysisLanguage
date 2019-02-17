@@ -53,17 +53,22 @@ class query_ast_visitor(query_ast_visitor_base):
         pass
 
     def visit_select_many_ast(self, ast):
+        r'''
+        Apply the selection function to the base to generate a collection, and then
+        loop over that collection.
+        '''
         # Do the visit of the parent stuff first to make sure everything is ready.
         query_ast_visitor_base.visit_select_many_ast(self, ast)
 
-        # Look at the selection function. We have to determine what type of collection it is,
-        # and make sure it is available for us to loop over.
-        self._gc.add_statement(statement.xaod_get_collection("AntiKt4EMTopoJets", "jets"))
-
-        # Next, we know we are accessing Jets (just because), so here we want to emit a loop over jets.
-        self._gc.add_statement(statement.loop("*jets", "jet"))
+        # Get the collection, and then generate the loop over it.
+        rep_source = ast._source.get_rep()
+        rep_collection = rep_source.access_collection(self._gc, ast)
+        rep_iterator = rep_collection.loop_over_collection(self._gc)
 
 class cpp_source_emitter:
+    r'''
+    Helper class to emit C++ code as we go
+    '''
     def __init__(self):
         self._lines_of_query_code = []
         self._indent_level = 0
@@ -129,6 +134,7 @@ class atlas_xaod_executor:
             # Build the C++ file
 
             # Now use docker to run this mess
+            # TODO: Nice error if user doesn't have docker installed or running.
             docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(local_run_dir, datafile_dir)
             os.system(docker_cmd)
             os.system("type {0}\\query.cxx".format(local_run_dir))

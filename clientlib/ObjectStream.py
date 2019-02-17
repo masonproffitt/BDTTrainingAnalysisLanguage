@@ -2,6 +2,7 @@
 import clientlib.query_ast as query_ast
 import clientlib.query_TTree as query_TTree
 import clientlib.pandas_df_ast as pandas_df_ast
+import ast
 
 class ObjectStream:
     def __init__(self, ast):
@@ -16,8 +17,10 @@ class ObjectStream:
         The user wants to unroll a collection. This func needs to:
         1. Figure out what needs to be done to get at the collection
         2. Return a stream of new objects.
+
+        func - a string that can be compiled to a python AST.
         """
-        return ObjectStream(query_ast.select_many_ast(self._ast, func))
+        return ObjectStream(query_ast.select_many_ast(self._ast, ast.parse(func)))
 
     def Calibrate(self):
         r"""

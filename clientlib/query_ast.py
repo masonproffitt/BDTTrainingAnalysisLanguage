@@ -1,6 +1,8 @@
 # Contains AST elements for the query part of an expression
 # In general, AST's do not have any implementation level code (e.g. writting out C++).
 # Instead, they just hold data, and are visited.
+#
+# TODO: Make these part of the python ast library?
 
 class base_ast:
     r"""
@@ -31,7 +33,7 @@ class select_many_ast(base_ast):
 
     def __init__(self, source_ast, selection_function):
         r"""
-        source_ast - an AST that represents a collection
+        source_ast - a python that represents a collection
         """
         base_ast.__init__(self, source_ast)
         self._selection_function = selection_function
@@ -54,6 +56,10 @@ class select_ast (base_ast):
 class query_ast_visitor_base:
     r"""
     The base of the visitor call-back set.
+
+    TODO: Look at how this is done in other frameworks and copy the model.
+          Do we need links back into the base ast objects? Should they have
+          executable code?
     """
     def visit_select_ast (self, ast):
         'Visit select ast'

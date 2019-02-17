@@ -30,18 +30,25 @@ class query_ast_visitor(query_ast_visitor_base):
     def visit_panads_df_ast (self, ast):
         ast._source.visit_ast(self)
 
+    def class_declaration_code(self):
+        return self._gc.class_declaration_code()
+
     def visit_ttree_terminal_ast (self, ast):
         'We need to emit the code to generate a TTree as output'
 
         # For each incoming variable, we need to declare something we are going to write.
-        self._gc.declare_class_variable ('float', '_jetPt')
+        var_names = [(name, "_"+name) for name in ast._column_names]
+        self._gc.declare_class_variable ('float', var_names[0][1])
 
         # Next, emit the booking code
-        self._gc.add_book_statement(statement.book_ttree("analysis", [('JetPt', '_jetPt')]))
+        self._gc.add_book_statement(statement.book_ttree("analysis", [(var_names[0][0], var_names[0][1])]))
+
+        # Get the variable we need to run against.
+        var_value = "jet->pt()"
         ast._source.visit_ast(self)
 
         # Next, fill the variable with something
-        self._gc.add_statement(statement.set_var("_jetPt", 'jet->pt()'))
+        self._gc.add_statement(statement.set_var(var_names[0][1], var_value))
         
         # And trigger a fill!
         self._gc.add_statement(statement.ttree_fill("analysis"))
@@ -106,6 +113,7 @@ class atlas_xaod_executor:
         qv.emit_query(query_code)
         book_code = cpp_source_emitter()
         qv.emit_book(book_code)
+        class_dec_code = qv.class_declaration_code()
 
         # Create a temp directory in which we can run everything.
         with tempfile.TemporaryDirectory() as local_run_dir:
@@ -119,6 +127,7 @@ class atlas_xaod_executor:
             info['data_file_name'] = datafile_name
             info['query_code'] = query_code.lines_of_query_code()
             info['book_code'] = book_code.lines_of_query_code()
+            info['class_dec'] = class_dec_code
 
             # Next, copy over and fill the template files
             template_dir = "./R21Code"

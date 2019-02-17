@@ -1,6 +1,9 @@
 #ifndef analysis_query_H
 #define analysis_query_H
 
+
+// TODO: Clean up all the C++ code so it looks "nice"
+
 #include <AnaAlgorithm/AnaAlgorithm.h>
 
 class query : public EL::AnaAlgorithm
@@ -15,13 +18,10 @@ public:
   virtual StatusCode finalize () override;
 
 private:
-  // Variables to write out to the tree, one entry per jet.
-  float _jetPt;
+  {% for l in class_dec %}
+  {{l}}
+  {% endfor %}
 
-  // Configuration, and any other types of variables go here.
-  //float m_cutValue;
-  //TTree *m_myTree;
-  //TH1 *m_myHist;
 };
 
 #endif

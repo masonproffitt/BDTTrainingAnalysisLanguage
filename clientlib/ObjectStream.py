@@ -20,7 +20,7 @@ class ObjectStream:
 
         func - a string that can be compiled to a python AST.
         """
-        return ObjectStream(query_ast.select_many_ast(self._ast, ast.parse(func)))
+        return ObjectStream(query_ast.SelectMany(self._ast, ast.parse(func)))
 
     def Select(self, f):
         r"""
@@ -28,7 +28,7 @@ class ObjectStream:
 
         f - selection function
         """
-        return ObjectStream(query_ast.select_ast(self._ast, ast.parse(f)))
+        return ObjectStream(query_ast.Select(self._ast, ast.parse(f)))
 
     def AsPandasDF(self, columns=[]):
         r"""
@@ -51,19 +51,31 @@ class ObjectStream:
         if len(columns) == 0:
             columns=['col0']
 
-        return ObjectStream(query_TTree.ttree_terminal_ast(self._ast, columns))
+        return ObjectStream(query_TTree.CreateTTreeFile(self._ast, columns))
 
     def AsPandasDFFromROOTFile(self):
         r"""
         Return a pandas df frame from the root file.
         """
 
-        return ObjectStream(pandas_df_ast.panads_df_ast(self._ast))
+        return ObjectStream(pandas_df_ast.CreatePandasDF(self._ast))
 
     def value(self):
         r"""
         Trigger the evaluation of the AST.
         """
 
-        exe = self._ast.get_executor()
-        return exe.evaluate(self._ast)
+        exe = find_executor()
+        exe.visit(self._ast)
+        if len(exe.executors) != 1:
+            raise BaseException("Unable to find a single, unique, executor for expression (found " + str(len(exe.executors)) + ").")
+        return exe.executors[0].evaluate(self._ast)
+
+class find_executor(ast.NodeVisitor):
+    def __init__ (self):
+        self.executors = []
+
+    def generic_visit(self, node):
+        if hasattr(node, "get_executor"):
+            self.executors += [node.get_executor()]
+        ast.NodeVisitor.generic_visit(self, node)

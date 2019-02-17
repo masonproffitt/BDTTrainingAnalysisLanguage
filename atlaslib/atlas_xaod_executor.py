@@ -4,10 +4,9 @@ from shutil import copyfile
 import os
 from urllib.parse import urlparse
 import jinja2
-from clientlib.query_ast import query_ast_visitor_base
 from atlaslib.generated_code import generated_code
 import atlaslib.statement as statement
-from atlaslib.expression_ast import assure_labmda
+from atlaslib.expression_ast import assure_lambda
 from atlaslib.cpp_representation import cpp_variable
 
 import pandas as pd
@@ -53,12 +52,16 @@ class generate_expression_from_lambda(ast.NodeVisitor):
         c_stub = self._result.name() + ("->" if self._result.is_pointer() else "->")
         self._result = cpp_variable(c_stub + function_name + "()", is_pointer=False)
 
-class query_ast_visitor(query_ast_visitor_base):
+class query_ast_visitor(ast.NodeVisitor):
     r"""
     Drive the conversion to C++ of the top level query
     """
 
     def __init__ (self):
+        r'''
+        Initialize the visitor.
+        '''
+        # Tracks the output of the code.
         self._gc = generated_code()
 
     def emit_query(self, e):
@@ -69,25 +72,27 @@ class query_ast_visitor(query_ast_visitor_base):
         'Emit the parsed lines'
         self._gc.emit_book_code(e)
 
-    def visit_panads_df_ast (self, ast):
-        ast._source.visit_ast(self)
-
     def class_declaration_code(self):
         return self._gc.class_declaration_code()
 
-    def visit_ttree_terminal_ast (self, ast):
-        'We need to emit the code to generate a TTree as output'
+    def visit_CreatePandasDF (self, node):
+        'Generate the code to convert to a pandas DF'
+        self.generic_visit(node)
+
+    def visit_CreateTTreeFile (self, node):
+        'This AST means we are taking an iterable and converting it to a file.'
+        self.generic_visit(node)
 
         # For each incoming variable, we need to declare something we are going to write.
-        var_names = [(name, "_"+name) for name in ast._column_names]
+        var_names = [(name, "_"+name) for name in node.column_names]
         self._gc.declare_class_variable ('float', var_names[0][1])
 
         # Next, emit the booking code
         self._gc.add_book_statement(statement.book_ttree("analysis", [(var_names[0][0], var_names[0][1])]))
 
         # Get the variable we need to run against.
-        ast._source.visit_ast(self)
-        v_rep = ast._source.get_rep()
+        # Note that rep was filled in when we visited the ast earlier in this method.
+        v_rep = node.source.rep
 
         # Next, fill the variable with something
         self._gc.add_statement(statement.set_var(var_names[0][1], v_rep.name()))
@@ -98,37 +103,38 @@ class query_ast_visitor(query_ast_visitor_base):
         # And we are a terminal, so pop off the block.
         self._gc.pop_scope()
 
-    def visit_select_ast (self, select_ast):
-        'Figure out what we are selecting'
+    def visit_Select (self, select_ast):
+        'Transform the iterable'
         # First do the parent.
-        query_ast_visitor_base.visit_select_ast(self, select_ast)
+        self.generic_visit(select_ast)
 
         # Get the base rep, and then apply it to the lambda.
-        b_rep = select_ast._source.get_rep()
-        l = select_ast._selection_function
-        assure_labmda(l)
+        b_rep = select_ast.source.rep
+        l = select_ast.selection
+        assure_lambda(l)
         e_vis = generate_expression_from_lambda(self._gc, b_rep)
         e_vis.visit(l)
 
-        select_ast.set_rep(e_vis.get_result())
+        select_ast.rep = e_vis.get_result()
 
-    def visit_atlas_file_event_stream_ast(self, ast):
+    def visit_AtlasXAODFileStream(self, node):
+        self.generic_visit(node)
         pass
 
-    def visit_select_many_ast(self, ast):
+    def visit_SelectMany(self, ast):
         r'''
         Apply the selection function to the base to generate a collection, and then
         loop over that collection.
         '''
         # Do the visit of the parent stuff first to make sure everything is ready.
-        query_ast_visitor_base.visit_select_many_ast(self, ast)
+        self.generic_visit(ast)
 
         # Get the collection, and then generate the loop over it.
-        rep_source = ast._source.get_rep()
+        rep_source = ast.source.rep
         rep_collection = rep_source.access_collection(self._gc, ast)
         rep_iterator = rep_collection.loop_over_collection(self._gc)
 
-        ast.set_rep(rep_iterator)
+        ast.rep = rep_iterator
 
 class cpp_source_emitter:
     r'''
@@ -166,7 +172,7 @@ class atlas_xaod_executor:
 
         # Visit the AST to generate the code
         qv = query_ast_visitor()
-        ast.visit_ast(qv)
+        qv.visit(ast)
         query_code = cpp_source_emitter()
         qv.emit_query(query_code)
         book_code = cpp_source_emitter()

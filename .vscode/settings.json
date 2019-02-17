@@ -1,11 +1,13 @@
 {
     "cSpell.words": [
+        "AST's",
         "EXOT",
         "LINTQ",
         "numpy",
         "pythonic",
         "shutil",
-        "systematics"
+        "systematics",
+        "ttree"
     ],
     "python.pythonPath": "I:\\Anaconda3\\python.exe"
 }

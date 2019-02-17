@@ -1,82 +1,59 @@
-# Contains AST elements for the query part of an expression
-# In general, AST's do not have any implementation level code (e.g. writting out C++).
-# Instead, they just hold data, and are visited.
+# Contains AST elements for the query part of an expression.
+# This is an extension of the python AST, and is written in that same style.
 #
-# TODO: Make these part of the python ast library?
+# AST's are designed to have only data, no code. In that sense, they could
+# be transmitted over the wire and received at the other end.
+#
+# Of course, this being python, it is possible to add new things to the class
+# member variables.
 
-class base_ast:
+# TODO: Rename atlaslib to xAODlib or similar, just to make it clear how these
+#       libraries really work.
+import ast
+
+class SelectMany(ast.AST):
     r"""
-    Base class for ast to provide some useful common tools
+    AST node for SelectMany. A selection function picks out
+    a collection, and then one iterates over that collection.
     """
-    
-    def __init__(self, source_ast):
-        self._source = source_ast
-        self._rep = None
-
-    def get_executor (self):
+    def __init__(self, source, selection_function):
         r"""
-        Return the executor. This should climb the chain until it hits an ast that
-        knows how to run. Usually this is the data file (the ROOT file?)
+        AST node that represents a SelectMany operation. It's resulting type is an iterator
+        over the collection selected by ``selection_function``.
+
+        source - An AST that represents the source iterator.
+        selection_function - A lambda that selects a collection to iterate over when applied to source.
         """
-        if self._source:
-            return self._source.get_executor()
-        else:
-            raise BaseException("internal bug: get_executor should not be called with a null source.")
-    
-    def visit_ast(self, visitor):
-        'Visit the ast. This needs to be implemented in each sub-class'
-        raise BaseException("visit_ast is virtual and must be implemented everywhere: " + type(self).__qualname__)
+        self.source = source
+        self.selection = selection_function
+        self._fields = ['source', 'selection']
 
-    def set_rep(self, rep):
-        'Set the representation for this object'
-        self._rep = rep
-    
-    def get_rep(self):
-        r'''Return the representation. Explode if it hasn't been set'''
-        if self._rep is None:
-            raise BaseException("Attempt to get representation (" + type(self).__name__ + ") and it isn't set")
-        
-        return self._rep
-
-class select_many_ast(base_ast):
+class Select(ast.AST):
     r"""
-    AST node for select many. Incoming type is a collection
+    AST node for Select. Transforms the input to the output by applying
+    some selection function.
     """
 
-    def __init__(self, source_ast, selection_function):
+    def __init__(self, source, select_function):
         r"""
-        source_ast - a python that represents a collection
+        Initialize an AST node that represents a Select operation. As input takes an iterator
+        and transforms it to another iterator by applying ``select_function`` to each individual
+        object.
+
+        source - An AST that represents the source iterator.
+        select_function - function that operates on each item of the source.
         """
-        base_ast.__init__(self, source_ast)
-        self._selection_function = selection_function
+        self.selection = select_function
+        self.source = source
+        self._fields = ('source', 'selection')
 
-    def visit_ast(self, visitor):
-        visitor.visit_select_many_ast (self)
+# class QNodeVisitor(ast.NodeVisitor):
+#     r"""
+#     Extends the node tranversal of the ast.NodeVisitor to visit, without modifying, each
+#     element in the AST.
+#     """
+#     def visit_Select(self, select_node):
+#         pass
 
-class select_ast (base_ast):
-    r"""
-    AST node for select. Transforms the input to the output.
-    """
-
-    def __init__(self, source_ast, select_function):
-        base_ast.__init__(self, source_ast)
-        self._selection_function = select_function
-
-    def visit_ast(self, visitor):
-        visitor.visit_select_ast (self)
-
-class query_ast_visitor_base:
-    r"""
-    The base of the visitor call-back set.
-
-    TODO: Look at how this is done in other frameworks and copy the model.
-          Do we need links back into the base ast objects? Should they have
-          executable code?
-    """
-    def visit_select_ast (self, ast):
-        'Visit select ast'
-        ast._source.visit_ast(self)
-
-    def visit_select_many_ast (self, ast):
-        'Visit select many source'
-        ast._source.visit_ast(self)
+#     def visit_SelectMany(self, select_many_node):
+#         pass

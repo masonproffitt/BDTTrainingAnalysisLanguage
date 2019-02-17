@@ -2,7 +2,7 @@
 # TODO: there are some nice expression libraries on the web - examine them to see if they can
 #       help us. https://greentreesnakes.readthedocs.io/en/latest/index.html
 
-def assure_labmda (east, nargs = None):
+def assure_lambda (east, nargs = None):
     r'''
     Make sure the Python expression ast is a lambda call, and that it has the right number of args.
 

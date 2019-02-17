@@ -1,9 +1,15 @@
-# Code related to converting a root file into a pandas DF
-from clientlib.query_ast import base_ast
+# AST for a creating a pandas df from a source.
+import ast
 
-class panads_df_ast (base_ast):
-    def __init__ (self, source_ast):
-        base_ast.__init__(self, source_ast)
-
-    def visit_ast (self, visitor):
-        visitor.visit_panads_df_ast(self)
+class CreatePandasDF(ast.AST):
+    r'''
+    AST representing the creating of a Pandas DF from some source.
+    Note: not quite sure how this fits in as it requires a ROOT file first, and not an iterator (at the moment). Need
+    to re-do the implementation when we have data sources that are flat root files and pandas DF's.
+    '''
+    def __init__ (self, source):
+        r'''
+        Create the AST that converts the source into a dataframe
+        '''
+        self.source = source
+        self._fields = ('source',)

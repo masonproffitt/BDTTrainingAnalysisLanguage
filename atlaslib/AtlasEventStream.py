@@ -1,7 +1,6 @@
 # Event stream from ATLAS
 from clientlib.EventStream import EventStream
 from atlaslib.atlas_xaod_executor import atlas_xaod_executor
-from clientlib.query_ast import base_ast
 from atlaslib.cpp_representation import cpp_rep_base, cpp_variable, cpp_collection
 import ast
 import atlaslib.expression_ast as expression_ast
@@ -65,37 +64,33 @@ class atlas_xAOD_collection_rep(cpp_rep_base):
         Code up access to a particular collection. The ast needs to give us enough information
         to know what the hell we are after (type, etc.)
         '''
-        expression_ast.assure_labmda(access_ast, nargs=1)
+        expression_ast.assure_lambda(access_ast, nargs=1)
 
         v = xAOD_event_expression_parser(gen_code)
-        v.visit(access_ast._selection_function)
+        v.visit(access_ast.selection)
         return v._result
 
 
-class atlas_file_event_stream_ast (base_ast):
+class AtlasXAODFileStream(ast.AST):
     r"""
     An AST node that represents the event source.
     """
     def __init__ (self, ds_url):
-        base_ast.__init__(self, None)
-        self._ds = ds_url
-        self._rep = None
+        self.dataset_url = ds_url
+        self.rep = atlas_xAOD_collection_rep()
 
     def get_executor(self):
-        return atlas_xaod_executor(self._ds)
+        return atlas_xaod_executor(self.dataset_url)
 
-    def visit_ast(self, visitor):
-        visitor.visit_atlas_file_event_stream_ast(self)
-
-    def get_rep(self):
-        '''Return the representation for this file'''
-        if self._rep is None:
-            self._rep = atlas_xAOD_collection_rep()
-        return self._rep
+    # def get_rep(self):
+    #     '''Return the representation for this file'''
+    #     if self._rep is None:
+    #         self._rep = atlas_xAOD_collection_rep()
+    #     return self._rep
 
 class AtlasEventStream(EventStream):
     r"""
     A stream of events from an ATLAS xAOD file.
     """
     def __init__(self, evt_stream):
-        EventStream.__init__(self, atlas_file_event_stream_ast(evt_stream._url))
+        EventStream.__init__(self, AtlasXAODFileStream(evt_stream._url))

@@ -11,6 +11,7 @@ class base_ast:
     
     def __init__(self, source_ast):
         self._source = source_ast
+        self._rep = None
 
     def get_executor (self):
         r"""
@@ -25,6 +26,17 @@ class base_ast:
     def visit_ast(self, visitor):
         'Visit the ast. This needs to be implemented in each sub-class'
         raise BaseException("visit_ast is virtual and must be implemented everywhere: " + type(self).__qualname__)
+
+    def set_rep(self, rep):
+        'Set the representation for this object'
+        self._rep = rep
+    
+    def get_rep(self):
+        r'''Return the representation. Explode if it hasn't been set'''
+        if self._rep is None:
+            raise BaseException("Attempt to get representation (" + type(self).__name__ + ") and it isn't set")
+        
+        return self._rep
 
 class select_many_ast(base_ast):
     r"""

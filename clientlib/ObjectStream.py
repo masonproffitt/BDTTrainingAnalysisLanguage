@@ -36,7 +36,7 @@ class ObjectStream:
 
         f - selection function
         """
-        return ObjectStream(query_ast.select_ast(self._ast, f))
+        return ObjectStream(query_ast.select_ast(self._ast, ast.parse(f)))
 
     def AsPandasDF(self, columns=[]):
         r"""

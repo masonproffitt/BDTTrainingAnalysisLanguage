@@ -7,9 +7,51 @@ import jinja2
 from clientlib.query_ast import query_ast_visitor_base
 from atlaslib.generated_code import generated_code
 import atlaslib.statement as statement
+from atlaslib.expression_ast import assure_labmda
+from atlaslib.cpp_representation import cpp_variable
 
 import pandas as pd
 import uproot
+import ast
+
+class generate_expression_from_lambda(ast.NodeVisitor):
+    'Generate code to access an xAOD expression'
+
+    def __init__(self, gc, base_rep):
+        'Keep track of the generated code object so we can use it as we need'
+        self._gc = gc
+        self._var_dict = {}
+        self._result = base_rep
+
+    def get_result (self):
+        return self._result
+
+    def visit_Lambda(self, lambda_node):
+        'Record this variable name so when we see references to it we know it is the event store'
+        self._var_dict[lambda_node.args.args[0].arg] = self._result
+        ast.NodeVisitor.visit(self, lambda_node.body)
+        del self._var_dict[lambda_node.args.args[0].arg]
+
+    def resolve_id (self, id):
+        'Look up the in our local dict'
+        return self._var_dict[id] if id in self._var_dict else id
+
+    def visit_Call(self, call_node):
+        r'''
+        We can't deal with arguments, or anything else, so this is a very limited call for now!
+        '''
+        
+        # handle only if this is a call against event.
+        object_call_against = self.resolve_id(call_node.func.value.id)
+        function_name = call_node.func.attr
+
+        # Make sure we are calling against EVENT.
+        if object_call_against is not self._result:
+            raise BaseException("Only calls against EVENT are supported")
+
+        # Ok, code up access to the collection.
+        c_stub = self._result.name() + ("->" if self._result.is_pointer() else "->")
+        self._result = cpp_variable(c_stub + function_name + "()", is_pointer=False)
 
 class query_ast_visitor(query_ast_visitor_base):
     r"""
@@ -44,17 +86,31 @@ class query_ast_visitor(query_ast_visitor_base):
         self._gc.add_book_statement(statement.book_ttree("analysis", [(var_names[0][0], var_names[0][1])]))
 
         # Get the variable we need to run against.
-        var_value = "jet->pt()"
         ast._source.visit_ast(self)
+        v_rep = ast._source.get_rep()
 
         # Next, fill the variable with something
-        self._gc.add_statement(statement.set_var(var_names[0][1], var_value))
+        self._gc.add_statement(statement.set_var(var_names[0][1], v_rep.name()))
         
         # And trigger a fill!
         self._gc.add_statement(statement.ttree_fill("analysis"))
 
         # And we are a terminal, so pop off the block.
         self._gc.pop_scope()
+
+    def visit_select_ast (self, select_ast):
+        'Figure out what we are selecting'
+        # First do the parent.
+        query_ast_visitor_base.visit_select_ast(self, select_ast)
+
+        # Get the base rep, and then apply it to the lambda.
+        b_rep = select_ast._source.get_rep()
+        l = select_ast._selection_function
+        assure_labmda(l)
+        e_vis = generate_expression_from_lambda(self._gc, b_rep)
+        e_vis.visit(l)
+
+        select_ast.set_rep(e_vis.get_result())
 
     def visit_atlas_file_event_stream_ast(self, ast):
         pass
@@ -71,6 +127,8 @@ class query_ast_visitor(query_ast_visitor_base):
         rep_source = ast._source.get_rep()
         rep_collection = rep_source.access_collection(self._gc, ast)
         rep_iterator = rep_collection.loop_over_collection(self._gc)
+
+        ast.set_rep(rep_iterator)
 
 class cpp_source_emitter:
     r'''

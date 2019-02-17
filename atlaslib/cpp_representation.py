@@ -82,7 +82,7 @@ class cpp_collection(cpp_variable):
 
         returns:
 
-        obj - term containing the object
+        obj - term containing the object that is the loop variable
         '''
 
         # Create the var we are going to iterate over, and figure out how to reference
@@ -92,3 +92,6 @@ class cpp_collection(cpp_variable):
 
         # Finally, the actual loop statement.
         gc.add_statement(statement.loop(c_ref, v.name()))
+
+        # and that iterating variable is teh rep
+        return v

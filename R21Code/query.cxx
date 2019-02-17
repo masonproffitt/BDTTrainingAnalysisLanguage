@@ -23,10 +23,6 @@ StatusCode query :: initialize ()
   // trees.  This method gets called before any input files are
   // connected.
 
-  // Book a TTree
-  // ANA_CHECK (book (TTree ("analysis", "My analysis ntuple")));
-  // auto mytree = tree ("analysis");
-  // mytree->Branch("JetPt", &_jetPt);
   {% for l in book_code %}
   {{l}}
   {% endfor %}
@@ -42,20 +38,9 @@ StatusCode query :: execute ()
   // code will go.
 
   // retrieve the eventInfo object from the event store
-  const xAOD::EventInfo *eventInfo = nullptr;
-  ANA_CHECK (evtStore()->retrieve (eventInfo, "EventInfo"));
-  ANA_MSG_INFO ("in execute, runNumber = " << eventInfo->runNumber() << ", eventNumber = " << eventInfo->eventNumber());
-
-  // Loop over the jets, and print out some nice info.
-  // const xAOD::JetContainer* jets = 0;
-  // ANA_CHECK (evtStore()->retrieve( jets, "AntiKt4EMTopoJets")); // Make 'AnalysisJets_NOSYS' if systematics & calibration are being run
-  //ANA_MSG_INFO ("execute(): number of jets = " << jets->size());
-
-  // for (auto jet : *jets) {
-  //     _jetPt = jet->pt();
-  //     //ANA_MSG_INFO ("execute(): jet pt = " << (jet->pt() * 0.001) << " GeV"); // just to print out something
-  //     tree("analysis")->Fill();
-  // }
+  // const xAOD::EventInfo *eventInfo = nullptr;
+  // ANA_CHECK (evtStore()->retrieve (eventInfo, "EventInfo"));
+  // ANA_MSG_INFO ("in execute, runNumber = " << eventInfo->runNumber() << ", eventNumber = " << eventInfo->eventNumber());
 
   {% for l in query_code %}
   {{l}}

@@ -1,9 +1,6 @@
 #ifndef analysis_query_H
 #define analysis_query_H
 
-
-// TODO: Clean up all the C++ code so it looks "nice"
-
 #include <AnaAlgorithm/AnaAlgorithm.h>
 
 class query : public EL::AnaAlgorithm
@@ -18,6 +15,8 @@ public:
   virtual StatusCode finalize () override;
 
 private:
+  // Class level variables
+
   {% for l in class_dec %}
   {{l}}
   {% endfor %}

@@ -59,7 +59,7 @@ class ObjectStream:
         if len(columns) == 0:
             columns=['col0']
 
-        return ObjectStream(query_TTree.ttree_terminal_ast(self._ast, columns, "analysis.root"))
+        return ObjectStream(query_TTree.ttree_terminal_ast(self._ast, columns))
 
     def AsPandasDFFromROOTFile(self):
         r"""

@@ -25,7 +25,7 @@ sh.printContent()
 # Create an EventLoop job.
 job = ROOT.EL.Job()
 job.sampleHandler( sh )
-job.options().setDouble( ROOT.EL.Job.optMaxEvents, 500 )
+# job.options().setDouble( ROOT.EL.Job.optMaxEvents, 500 )
 
 # Commented out for now because it really slows things down. Uncomment and change
 # the bank to be Analysis_NOSYS in query.cxx and it will work again.

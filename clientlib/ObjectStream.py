@@ -4,6 +4,7 @@ import clientlib.query_TTree as query_TTree
 import clientlib.pandas_df_ast as pandas_df_ast
 import ast
 
+
 class ObjectStream:
     def __init__(self, ast):
         r"""
@@ -11,7 +12,7 @@ class ObjectStream:
         """
         self._ast = ast
         pass
-    
+
     def SelectMany(self, func):
         r"""
         The user wants to unroll a collection. This func needs to:
@@ -49,7 +50,7 @@ class ObjectStream:
         """
         # Fix up the number of columns
         if len(columns) == 0:
-            columns=['col0']
+            columns = ['col0']
 
         return ObjectStream(query_TTree.CreateTTreeFile(self._ast, columns))
 
@@ -68,11 +69,13 @@ class ObjectStream:
         exe = find_executor()
         exe.visit(self._ast)
         if len(exe.executors) != 1:
-            raise BaseException("Unable to find a single, unique, executor for expression (found " + str(len(exe.executors)) + ").")
+            raise BaseException(
+                "Unable to find a single, unique, executor for expression (found " + str(len(exe.executors)) + ").")
         return exe.executors[0].evaluate(self._ast)
 
+
 class find_executor(ast.NodeVisitor):
-    def __init__ (self):
+    def __init__(self):
         self.executors = []
 
     def generic_visit(self, node):

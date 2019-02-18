@@ -8,11 +8,13 @@
 # member variables.
 import ast
 
+
 class SelectMany(ast.AST):
     r"""
     AST node for SelectMany. A selection function picks out
     a collection, and then one iterates over that collection.
     """
+
     def __init__(self, source, selection_function):
         r"""
         AST node that represents a SelectMany operation. It's resulting type is an iterator
@@ -24,6 +26,7 @@ class SelectMany(ast.AST):
         self.source = source
         self.selection = selection_function
         self._fields = ['source', 'selection']
+
 
 class Select(ast.AST):
     r"""

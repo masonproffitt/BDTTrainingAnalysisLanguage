@@ -1,6 +1,7 @@
 # A stream of events.
 from clientlib.ObjectStream import ObjectStream
 
+
 class EventStream(ObjectStream):
     def __init__(self, ds_ast):
         r"""

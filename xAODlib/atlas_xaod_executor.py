@@ -16,12 +16,13 @@ import pandas as pd
 import uproot
 import ast
 
+
 class query_ast_visitor(ast.NodeVisitor):
     r"""
     Drive the conversion to C++ from the top level query
     """
 
-    def __init__ (self):
+    def __init__(self):
         r'''
         Initialize the visitor.
         '''
@@ -41,24 +42,26 @@ class query_ast_visitor(ast.NodeVisitor):
     def class_declaration_code(self):
         return self._gc.class_declaration_code()
 
-    def resolve_id (self, id):
+    def resolve_id(self, id):
         'Look up the in our local dict'
         return self._var_dict[id] if id in self._var_dict else id
 
     def call_against_current_obj(self, obj, object_call_method, args):
         'Call against the current object'
         c_stub = obj.name() + ("->" if obj.is_pointer() else "->")
-        self._result = cpp_variable(c_stub + object_call_method + "()", is_pointer=False)
+        self._result = cpp_variable(
+            c_stub + object_call_method + "()", is_pointer=False)
         pass
 
     def call_base_collection(self, object_call_method, args):
         'Call against the base collection'
         if object_call_method == "Jets":
             collection_name = args[0].s
-            self._gc.add_statement(statement.xaod_get_collection(collection_name, "jets"))
+            self._gc.add_statement(
+                statement.xaod_get_collection(collection_name, "jets"))
             self._result = cpp_collection("jets", is_pointer=True)
         else:
-            raise BaseException ("Only Jets is understood right now")
+            raise BaseException("Only Jets is understood right now")
 
     def visit_Call_Lambda(self, call_node):
         'Call to a lambda function. This is book keeping and we dive in'
@@ -73,9 +76,9 @@ class query_ast_visitor(ast.NodeVisitor):
         for l_arg in call_node.func.args.args:
             del self._var_dict[l_arg.arg]
 
-    def visit_Call_Member (self, call_node):
+    def visit_Call_Member(self, call_node):
         'Method call on an object'
-        
+
         # This is a 'real' call - that is, something we should know about rather than
         # arbitrary python code.
         object_call_against = self.resolve_id(call_node.func.value.id)
@@ -91,7 +94,8 @@ class query_ast_visitor(ast.NodeVisitor):
         if type(object_call_against) is xAODlib.AtlasEventStream.AtlasXAODFileStream:
             self.call_base_collection(function_name, call_node.args)
         else:
-            self.call_against_current_obj(object_call_against.rep, function_name, call_node.args)
+            self.call_against_current_obj(
+                object_call_against.rep, function_name, call_node.args)
 
     def visit_Call(self, call_node):
         r'''
@@ -103,39 +107,42 @@ class query_ast_visitor(ast.NodeVisitor):
         else:
             self.visit_Call_Member(call_node)
 
-    def visit_CreatePandasDF (self, node):
+    def visit_CreatePandasDF(self, node):
         'Generate the code to convert to a pandas DF'
         self.generic_visit(node)
 
-    def visit_CreateTTreeFile (self, node):
+    def visit_CreateTTreeFile(self, node):
         'This AST means we are taking an iterable and converting it to a file.'
         self.generic_visit(node)
 
         # For each incoming variable, we need to declare something we are going to write.
         var_names = [(name, "_"+name) for name in node.column_names]
-        self._gc.declare_class_variable ('float', var_names[0][1])
+        self._gc.declare_class_variable('float', var_names[0][1])
 
         # Next, emit the booking code
-        self._gc.add_book_statement(statement.book_ttree("analysis", [(var_names[0][0], var_names[0][1])]))
+        self._gc.add_book_statement(statement.book_ttree(
+            "analysis", [(var_names[0][0], var_names[0][1])]))
 
         # Get the variable we need to run against.
         # Note that rep was filled in when we visited the ast earlier in this method.
         v_rep = node.source.rep
 
         # Next, fill the variable with something
-        self._gc.add_statement(statement.set_var(var_names[0][1], v_rep.name()))
-        
+        self._gc.add_statement(statement.set_var(
+            var_names[0][1], v_rep.name()))
+
         # And trigger a fill!
         self._gc.add_statement(statement.ttree_fill("analysis"))
 
         # And we are a terminal, so pop off the block.
         self._gc.pop_scope()
 
-    def visit_Select (self, select_ast):
+    def visit_Select(self, select_ast):
         'Transform the iterable from one form to another'
 
         # Simulate this as a "call"
-        c = ast.Call(func=select_ast.selection.body[0].value, args=[select_ast.source])
+        c = ast.Call(func=select_ast.selection.body[0].value, args=[
+                     select_ast.source])
         self.visit(c)
 
         rep = self._result
@@ -164,34 +171,39 @@ class query_ast_visitor(ast.NodeVisitor):
 
         node.rep = rep_iterator
 
+
 class cpp_source_emitter:
     r'''
     Helper class to emit C++ code as we go
     '''
+
     def __init__(self):
         self._lines_of_query_code = []
         self._indent_level = 0
 
-    def add_line (self, l):
+    def add_line(self, l):
         'Add a line of code, automatically deal with the indent'
         if l == '}':
             self._indent_level -= 1
 
-        self._lines_of_query_code += ["{0}{1}".format("  " * self._indent_level, l)]
+        self._lines_of_query_code += [
+            "{0}{1}".format("  " * self._indent_level, l)]
 
         if l == '{':
             self._indent_level += 1
 
-    def lines_of_query_code (self):
+    def lines_of_query_code(self):
         return self._lines_of_query_code
 
+
 class atlas_xaod_executor:
-    def __init__ (self, dataset):
+    def __init__(self, dataset):
         self._ds = dataset
 
     def copy_template_file(self, j2_env, info, template_file, final_dir):
         'Copy a file to a final directory'
-        j2_env.get_template(template_file).stream(info).dump(final_dir + '/' + template_file)
+        j2_env.get_template(template_file).stream(
+            info).dump(final_dir + '/' + template_file)
 
     def evaluate(self, ast):
         r"""
@@ -223,9 +235,12 @@ class atlas_xaod_executor:
 
             # Next, copy over and fill the template files
             template_dir = "./R21Code"
-            j2_env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
-            self.copy_template_file(j2_env, info, 'ATestRun_eljob.py', local_run_dir)
-            self.copy_template_file(j2_env, info, 'package_CMakeLists.txt', local_run_dir)
+            j2_env = jinja2.Environment(
+                loader=jinja2.FileSystemLoader(template_dir))
+            self.copy_template_file(
+                j2_env, info, 'ATestRun_eljob.py', local_run_dir)
+            self.copy_template_file(
+                j2_env, info, 'package_CMakeLists.txt', local_run_dir)
             self.copy_template_file(j2_env, info, 'query.cxx', local_run_dir)
             self.copy_template_file(j2_env, info, 'query.h', local_run_dir)
             self.copy_template_file(j2_env, info, 'runner.sh', local_run_dir)
@@ -235,7 +250,8 @@ class atlas_xaod_executor:
             # Build the C++ file
 
             # Now use docker to run this mess
-            docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(local_run_dir, datafile_dir)
+            docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(
+                local_run_dir, datafile_dir)
             os.system(docker_cmd)
             os.system("type {0}\\query.cxx".format(local_run_dir))
 

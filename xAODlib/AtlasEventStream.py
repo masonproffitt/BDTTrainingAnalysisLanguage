@@ -6,19 +6,23 @@ import ast
 import xAODlib.expression_ast as expression_ast
 import xAODlib.statement as statement
 
+
 class AtlasXAODFileStream(ast.AST):
     r"""
     An AST node that represents the event source.
     """
-    def __init__ (self, ds_url):
+
+    def __init__(self, ds_url):
         self.dataset_url = ds_url
 
     def get_executor(self):
         return atlas_xaod_executor(self.dataset_url)
 
+
 class AtlasEventStream(EventStream):
     r"""
     A stream of events from an ATLAS xAOD file.
     """
+
     def __init__(self, evt_stream):
         EventStream.__init__(self, AtlasXAODFileStream(evt_stream._url))

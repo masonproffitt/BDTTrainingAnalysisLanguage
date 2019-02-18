@@ -2,7 +2,6 @@
 # This is an abstract class. Almost everyone is going to have to
 # implement one.
 #
-# TODO: lint/pretty up everything.
 import xAODlib.statement as statement
 
 
@@ -19,7 +18,7 @@ class cpp_rep_base:
         This item has a collection. Access it, using the ast above, and return
         a rep for the collection.
         Assumes: this rep has collections to access. Something representing a float, for example, would not.
-        
+
         gen_code - The generated_code object that we can use to emit C++ code.
         access_ast - a lambda function that when applied to this representation should yield the collection.
                      An error should be thrown if that isn't the case.
@@ -28,29 +27,32 @@ class cpp_rep_base:
 
         collection_rep - A rep that allows code to directly access (loop over, etc) the collection.
         '''
-        raise BaseException("access_collection is not implemented for this type:" + type(self).__name__)
+        raise BaseException(
+            "access_collection is not implemented for this type:" + type(self).__name__)
+
 
 class cpp_variable(cpp_rep_base):
     r'''
     The representation for a simple variable.
     '''
 
-    def __init__ (self, name, is_pointer = False):
+    def __init__(self, name, is_pointer=False):
         self._cpp_name = name
         self._is_pointer = is_pointer
 
-    def name (self):
+    def name(self):
         return self._cpp_name
 
     def is_pointer(self):
         return self._is_pointer
-        
+
+
 class cpp_collection(cpp_variable):
     r'''
     The representation for a collection. Something that can be iterated over.
     '''
 
-    def __init__(self, name, is_pointer = False):
+    def __init__(self, name, is_pointer=False):
         r'''Remember the C++ name of this variable
 
         name - The name of the variable we are going to save here

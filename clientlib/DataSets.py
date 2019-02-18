@@ -1,5 +1,5 @@
 # Code to help specify and work with datasets on the client end.
-from atlaslib.AtlasEventStream import AtlasEventStream
+from xAODlib.AtlasEventStream import AtlasEventStream
 
 class EventDataSet:
     def __init__ (self, url):

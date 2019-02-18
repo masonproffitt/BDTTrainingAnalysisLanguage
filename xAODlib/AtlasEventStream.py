@@ -1,13 +1,10 @@
 # Event stream from ATLAS
 from clientlib.EventStream import EventStream
-from atlaslib.atlas_xaod_executor import atlas_xaod_executor
-from atlaslib.cpp_representation import cpp_rep_base, cpp_variable, cpp_collection
+from xAODlib.atlas_xaod_executor import atlas_xaod_executor
+from xAODlib.cpp_representation import cpp_rep_base, cpp_variable, cpp_collection
 import ast
-import atlaslib.expression_ast as expression_ast
-import atlaslib.statement as statement
-
-# TODO: Reorg the file so that it makes more sense from the readability POV
-# TODO: "ast" should be either east or qast depending if it is a query or a expression ast.
+import xAODlib.expression_ast as expression_ast
+import xAODlib.statement as statement
 
 class AtlasXAODFileStream(ast.AST):
     r"""

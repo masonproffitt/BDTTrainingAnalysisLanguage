@@ -119,7 +119,6 @@ make
 source x86_64-slc6-gcc62-opt/setup.sh
 
 # Do the run.
-# TODO: The first line should work, but does not for some odd reason. 
 #ATestRun_eljob.py --submission-dir=bogus
 python ../source/analysis/share/ATestRun_eljob.py --submission-dir=bogus
 

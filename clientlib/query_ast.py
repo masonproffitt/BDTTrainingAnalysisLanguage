@@ -6,9 +6,6 @@
 #
 # Of course, this being python, it is possible to add new things to the class
 # member variables.
-
-# TODO: Rename atlaslib to xAODlib or similar, just to make it clear how these
-#       libraries really work.
 import ast
 
 class SelectMany(ast.AST):

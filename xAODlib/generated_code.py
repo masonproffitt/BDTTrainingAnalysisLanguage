@@ -1,5 +1,5 @@
 # Hold onto the generated code
-from atlaslib.statement import block
+from xAODlib.statement import block
 
 class generated_code:
     def __init__ (self):

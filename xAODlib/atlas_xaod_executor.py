@@ -4,11 +4,13 @@ from shutil import copyfile
 import os
 from urllib.parse import urlparse
 import jinja2
-from atlaslib.generated_code import generated_code
-import atlaslib.statement as statement
-from atlaslib.expression_ast import assure_lambda
-from atlaslib.cpp_representation import cpp_variable, cpp_collection
-import atlaslib.AtlasEventStream
+from xAODlib.generated_code import generated_code
+import xAODlib.statement as statement
+from xAODlib.expression_ast import assure_lambda
+from xAODlib.cpp_representation import cpp_variable, cpp_collection
+#from xAODlib.AtlasEventStream import AtlasXAODFileStream
+import xAODlib.AtlasEventStream
+
 
 import pandas as pd
 import uproot
@@ -61,8 +63,6 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_Call_Lambda(self, call_node):
         'Call to a lambda function. This is book keeping and we dive in'
 
-        # Cache all the arguments. TODO: make sure to "push" them so we don't lose anything here if
-        # two lambda are invoked with same named arguments!
         for c_arg, l_arg in zip(call_node.args, call_node.func.args.args):
             self._var_dict[l_arg.arg] = c_arg
 
@@ -88,8 +88,7 @@ class query_ast_visitor(ast.NodeVisitor):
         #  - Global space - then it is a function (like "sin" or "len")
         #  - an object - some object we know something about
         #  - The ROOT object collection.
-        # TODO: Why do I have to fully qualified AtlasXAODFileStream here?
-        if type(object_call_against) is atlaslib.AtlasEventStream.AtlasXAODFileStream:
+        if type(object_call_against) is xAODlib.AtlasEventStream.AtlasXAODFileStream:
             self.call_base_collection(function_name, call_node.args)
         else:
             self.call_against_current_obj(object_call_against.rep, function_name, call_node.args)
@@ -236,7 +235,6 @@ class atlas_xaod_executor:
             # Build the C++ file
 
             # Now use docker to run this mess
-            # TODO: Nice error if user doesn't have docker installed or running.
             docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(local_run_dir, datafile_dir)
             os.system(docker_cmd)
             os.system("type {0}\\query.cxx".format(local_run_dir))

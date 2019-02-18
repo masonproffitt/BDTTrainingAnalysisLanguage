@@ -1,6 +1,4 @@
 # Code to help parsing expression AST's from python.
-# TODO: there are some nice expression libraries on the web - examine them to see if they can
-#       help us. https://greentreesnakes.readthedocs.io/en/latest/index.html
 
 def assure_lambda (east, nargs = None):
     r'''

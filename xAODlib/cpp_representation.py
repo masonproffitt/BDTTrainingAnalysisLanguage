@@ -3,7 +3,7 @@
 # implement one.
 #
 # TODO: lint/pretty up everything.
-import atlaslib.statement as statement
+import xAODlib.statement as statement
 
 
 class cpp_rep_base:
@@ -12,24 +12,8 @@ class cpp_rep_base:
 
     This is an abstract class for the most part. Do not override things that aren't needed - that way the system will
     know when the user tries to do something that they shouldn't have.
-
-    TODO: SHould loop over be moved to the cpp_collection guy?
     '''
 
-    def loop_over_collection(self, gen_code):
-        '''
-        Generate a loop over this collection.
-        Assumes: this rep is a collection (otherwise bomb!)
-
-        gen_code - The generated_code item that we can emit the loop on.
-
-        returns:
-
-        loop_rep - A rep that is the C++ variable that allows access to the items of
-                   this collection. 
-        '''
-        raise BaseException("loop_over_collection is not implemented for this type:" + type(self).__name__)
-    
     def access_collection(self, gen_code, access_ast):
         '''
         This item has a collection. Access it, using the ast above, and return
@@ -45,7 +29,6 @@ class cpp_rep_base:
         collection_rep - A rep that allows code to directly access (loop over, etc) the collection.
         '''
         raise BaseException("access_collection is not implemented for this type:" + type(self).__name__)
-
 
 class cpp_variable(cpp_rep_base):
     r'''
@@ -65,7 +48,6 @@ class cpp_variable(cpp_rep_base):
 class cpp_collection(cpp_variable):
     r'''
     The representation for a collection. Something that can be iterated over.
-    TODO: Should this be a cpp_variable as well?
     '''
 
     def __init__(self, name, is_pointer = False):
@@ -95,5 +77,5 @@ class cpp_collection(cpp_variable):
         # Finally, the actual loop statement.
         gc.add_statement(statement.loop(c_ref, v.name()))
 
-        # and that iterating variable is teh rep
+        # and that iterating variable is the rep
         return v

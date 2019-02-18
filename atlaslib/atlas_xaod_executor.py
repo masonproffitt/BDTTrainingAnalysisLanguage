@@ -7,54 +7,16 @@ import jinja2
 from atlaslib.generated_code import generated_code
 import atlaslib.statement as statement
 from atlaslib.expression_ast import assure_lambda
-from atlaslib.cpp_representation import cpp_variable
+from atlaslib.cpp_representation import cpp_variable, cpp_collection
+import atlaslib.AtlasEventStream
 
 import pandas as pd
 import uproot
 import ast
 
-class generate_expression_from_lambda(ast.NodeVisitor):
-    'Generate code to access an xAOD expression'
-
-    def __init__(self, gc, base_rep):
-        'Keep track of the generated code object so we can use it as we need'
-        self._gc = gc
-        self._var_dict = {}
-        self._result = base_rep
-
-    def get_result (self):
-        return self._result
-
-    def visit_Lambda(self, lambda_node):
-        'Record this variable name so when we see references to it we know it is the event store'
-        self._var_dict[lambda_node.args.args[0].arg] = self._result
-        ast.NodeVisitor.visit(self, lambda_node.body)
-        del self._var_dict[lambda_node.args.args[0].arg]
-
-    def resolve_id (self, id):
-        'Look up the in our local dict'
-        return self._var_dict[id] if id in self._var_dict else id
-
-    def visit_Call(self, call_node):
-        r'''
-        We can't deal with arguments, or anything else, so this is a very limited call for now!
-        '''
-        
-        # handle only if this is a call against event.
-        object_call_against = self.resolve_id(call_node.func.value.id)
-        function_name = call_node.func.attr
-
-        # Make sure we are calling against EVENT.
-        if object_call_against is not self._result:
-            raise BaseException("Only calls against EVENT are supported")
-
-        # Ok, code up access to the collection.
-        c_stub = self._result.name() + ("->" if self._result.is_pointer() else "->")
-        self._result = cpp_variable(c_stub + function_name + "()", is_pointer=False)
-
 class query_ast_visitor(ast.NodeVisitor):
     r"""
-    Drive the conversion to C++ of the top level query
+    Drive the conversion to C++ from the top level query
     """
 
     def __init__ (self):
@@ -63,6 +25,8 @@ class query_ast_visitor(ast.NodeVisitor):
         '''
         # Tracks the output of the code.
         self._gc = generated_code()
+        self._var_dict = {}
+        self._result = None
 
     def emit_query(self, e):
         'Emit the parsed lines'
@@ -74,6 +38,71 @@ class query_ast_visitor(ast.NodeVisitor):
 
     def class_declaration_code(self):
         return self._gc.class_declaration_code()
+
+    def resolve_id (self, id):
+        'Look up the in our local dict'
+        return self._var_dict[id] if id in self._var_dict else id
+
+    def call_against_current_obj(self, obj, object_call_method, args):
+        'Call against the current object'
+        c_stub = obj.name() + ("->" if obj.is_pointer() else "->")
+        self._result = cpp_variable(c_stub + object_call_method + "()", is_pointer=False)
+        pass
+
+    def call_base_collection(self, object_call_method, args):
+        'Call against the base collection'
+        if object_call_method == "Jets":
+            collection_name = args[0].s
+            self._gc.add_statement(statement.xaod_get_collection(collection_name, "jets"))
+            self._result = cpp_collection("jets", is_pointer=True)
+        else:
+            raise BaseException ("Only Jets is understood right now")
+
+    def visit_Call_Lambda(self, call_node):
+        'Call to a lambda function. This is book keeping and we dive in'
+
+        # Cache all the arguments. TODO: make sure to "push" them so we don't lose anything here if
+        # two lambda are invoked with same named arguments!
+        for c_arg, l_arg in zip(call_node.args, call_node.func.args.args):
+            self._var_dict[l_arg.arg] = c_arg
+
+        # Next, process the lambda's body.
+        self.visit(call_node.func.body)
+
+        # Done processing the lambda. Remove the arguments
+        for l_arg in call_node.func.args.args:
+            del self._var_dict[l_arg.arg]
+
+    def visit_Call_Member (self, call_node):
+        'Method call on an object'
+        
+        # This is a 'real' call - that is, something we should know about rather than
+        # arbitrary python code.
+        object_call_against = self.resolve_id(call_node.func.value.id)
+        function_name = call_node.func.attr
+
+        # Make sure the thing we are calling against has been "parsed"
+        self.visit(object_call_against)
+
+        # Calls are different depending upon what they are against.
+        #  - Global space - then it is a function (like "sin" or "len")
+        #  - an object - some object we know something about
+        #  - The ROOT object collection.
+        # TODO: Why do I have to fully qualified AtlasXAODFileStream here?
+        if type(object_call_against) is atlaslib.AtlasEventStream.AtlasXAODFileStream:
+            self.call_base_collection(function_name, call_node.args)
+        else:
+            self.call_against_current_obj(object_call_against.rep, function_name, call_node.args)
+
+    def visit_Call(self, call_node):
+        r'''
+        Very limited call forwarding.
+        '''
+        # What kind of a call is this?
+        if type(call_node.func) is ast.Lambda:
+            self.visit_Call_Lambda(call_node)
+        else:
+            self.visit_Call_Member(call_node)
 
     def visit_CreatePandasDF (self, node):
         'Generate the code to convert to a pandas DF'
@@ -104,37 +133,37 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.pop_scope()
 
     def visit_Select (self, select_ast):
-        'Transform the iterable'
-        # First do the parent.
-        self.generic_visit(select_ast)
+        'Transform the iterable from one form to another'
 
-        # Get the base rep, and then apply it to the lambda.
-        b_rep = select_ast.source.rep
-        l = select_ast.selection
-        assure_lambda(l)
-        e_vis = generate_expression_from_lambda(self._gc, b_rep)
-        e_vis.visit(l)
+        # Simulate this as a "call"
+        c = ast.Call(func=select_ast.selection.body[0].value, args=[select_ast.source])
+        self.visit(c)
 
-        select_ast.rep = e_vis.get_result()
+        rep = self._result
+        select_ast.rep = rep
 
     def visit_AtlasXAODFileStream(self, node):
         self.generic_visit(node)
         pass
 
-    def visit_SelectMany(self, ast):
+    def visit_SelectMany(self, node):
         r'''
         Apply the selection function to the base to generate a collection, and then
         loop over that collection.
         '''
-        # Do the visit of the parent stuff first to make sure everything is ready.
-        self.generic_visit(ast)
+        # We need to "call" the source with the function. So build up a new
+        # call, and then visit it.
+
+        c = ast.Call(func=node.selection.body[0].value, args=[node.source])
+        self.visit(c)
+
+        # The result is the collection we need to be looking at.
+        rep_collection = self._result
 
         # Get the collection, and then generate the loop over it.
-        rep_source = ast.source.rep
-        rep_collection = rep_source.access_collection(self._gc, ast)
         rep_iterator = rep_collection.loop_over_collection(self._gc)
 
-        ast.rep = rep_iterator
+        node.rep = rep_iterator
 
 class cpp_source_emitter:
     r'''

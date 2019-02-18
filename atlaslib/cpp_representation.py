@@ -12,6 +12,8 @@ class cpp_rep_base:
 
     This is an abstract class for the most part. Do not override things that aren't needed - that way the system will
     know when the user tries to do something that they shouldn't have.
+
+    TODO: SHould loop over be moved to the cpp_collection guy?
     '''
 
     def loop_over_collection(self, gen_code):

@@ -46,14 +46,3 @@ class Select(ast.AST):
         self.selection = select_function
         self.source = source
         self._fields = ('source', 'selection')
-
-# class QNodeVisitor(ast.NodeVisitor):
-#     r"""
-#     Extends the node tranversal of the ast.NodeVisitor to visit, without modifying, each
-#     element in the AST.
-#     """
-#     def visit_Select(self, select_node):
-#         pass
-
-#     def visit_SelectMany(self, select_many_node):
-#         pass

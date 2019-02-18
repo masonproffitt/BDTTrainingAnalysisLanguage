@@ -3,6 +3,7 @@
         "AST's",
         "EXOT",
         "LINTQ",
+        "nargs",
         "numpy",
         "pythonic",
         "shutil",

@@ -43,3 +43,22 @@ Tested on:
 ## Implementation
 
 This will have to have C++ parts and Python (numpy) parts.
+
+### Backend Implentation
+
+A new background is required to run on a different file. Or below the sheets, power it from a differet
+file format.
+
+Implementing a new executor isn't terribly hard. Here is an untested outline of what must be done.
+
+1. The system finds the proper backend code through the AST note that contans tje get_execcutor method. See the file `xAODLib/AtlasEventStream.py` for this file.
+
+1. This returns the executor found in the bottom of the `atlas_xaod_executor.py`. This drives everything. Almost everything is done in the evaluate method (there are a bunch of helpers). There are two stages.
+
+    1. The qv.visit(ast) is the main line. This starts the traversal of the AST that we need to turn into code. The visitor is based on `python`'s `ast.NodeVisitor` class. As it goes, it tracks what it is looking at. This is tricky. For example, how the `SelectMany` node translates from a collection to a sequence of its items.
+
+    1. The output file is generated using the template engine `jinj2` - though anything can be used.
+
+1. Finally, the code is run in a docker container which maps a temp script directory and the directory containing the data file.
+
+1. The results of this have to be given back to the calling source code. THis is currently a fake burried in the executor.

@@ -66,6 +66,17 @@ class query_ast_visitor(ast.NodeVisitor):
         else:
             return ast.NodeVisitor.generic_visit(self, node)
 
+    def get_rep(self, node, use_generic_visit = False):
+        r'''Return the rep for the node. If it isn't set yet, then run our visit on it.
+
+        node - The ast node to generate a representation for.
+        use_generic_visit - if true do generic_visit rather than visit.
+        '''
+        if not hasattr(node, 'rep'):
+            self.generic_visit(node) if use_generic_visit else self.visit(node)
+
+        return node.rep
+
     def resolve_id(self, id):
         'Look up the in our local dict'
         return self._var_dict[id] if id in self._var_dict else id
@@ -130,15 +141,24 @@ class query_ast_visitor(ast.NodeVisitor):
             self.visit_Call_Lambda(call_node)
         else:
             self.visit_Call_Member(call_node)
+        call_node.rep = self._result
+
+    def visit_Tuple(self, tuple_node):
+        r'''
+        Process a tuple. We visit each component of it, and build up a representation from each result.
+
+        See github bug #21 for the special case of dealing with (x1, x2, x3)[0].
+        '''
+        tuple_node.rep = tuple(self.get_rep(e) for e in tuple_node.elts)
+        self._result = tuple_node.rep
 
     def visit_CreatePandasDF(self, node):
         'Generate the code to convert to a pandas DF'
         self.generic_visit(node)
 
     def visit_CreateTTreeFile(self, node):
-        'This AST means we are taking an iterable and converting it to a file.'
-        self.generic_visit(node)
-
+        '''This AST means we are taking an iterable and converting it to a file.
+        '''
         # For each incoming variable, we need to declare something we are going to write.
         var_names = [(name, unique_name(name, is_class_var=True)) for name in node.column_names]
         for cv in var_names:
@@ -147,15 +167,19 @@ class query_ast_visitor(ast.NodeVisitor):
         # Next, emit the booking code
         self._gc.add_book_statement(statement.book_ttree("analysis", var_names))
 
-        # Get the variable we need to run against.
-        # Note that rep was filled in when we visited the ast earlier in this method.
-        v_rep = node.source.rep
+        # For each varable we need to save, put it in the C++ variable we've created above
+        # and then trigger a fill statement once that is all done.
 
-        # Next, fill the variable with something
-        self._gc.add_statement(statement.set_var(
-            var_names[0][1], v_rep.name()))
+        self.generic_visit(node)
+        v_rep = self.get_rep(node.source)
+        if type(v_rep) is not tuple:
+            v_rep = (v_rep,)
+        if len(v_rep) != len(var_names):
+            raise BaseException("Number of columns ({0}) is not the same as labels ({1}) in TTree creation".format(len(v_rep), len(var_names)))
 
-        # And trigger a fill!
+        for e in zip(v_rep, var_names):
+            self._gc.add_statement(statement.set_var(e[1][1], e[0].name()))
+
         self._gc.add_statement(statement.ttree_fill("analysis"))
 
         # And we are a terminal, so pop off the block.

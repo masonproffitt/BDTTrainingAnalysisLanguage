@@ -10,6 +10,7 @@ from xAODlib.expression_ast import assure_lambda
 from xAODlib.cpp_representation import cpp_variable, cpp_collection
 #from xAODlib.AtlasEventStream import AtlasXAODFileStream
 import xAODlib.AtlasEventStream
+from xAODlib.cpp_vars import unique_name
 
 
 import pandas as pd
@@ -139,12 +140,12 @@ class query_ast_visitor(ast.NodeVisitor):
         self.generic_visit(node)
 
         # For each incoming variable, we need to declare something we are going to write.
-        var_names = [(name, "_"+name) for name in node.column_names]
-        self._gc.declare_class_variable('float', var_names[0][1])
+        var_names = [(name, unique_name(name, is_class_var=True)) for name in node.column_names]
+        for cv in var_names:
+            self._gc.declare_class_variable('float', cv[1])
 
         # Next, emit the booking code
-        self._gc.add_book_statement(statement.book_ttree(
-            "analysis", [(var_names[0][0], var_names[0][1])]))
+        self._gc.add_book_statement(statement.book_ttree("analysis", var_names))
 
         # Get the variable we need to run against.
         # Note that rep was filled in when we visited the ast earlier in this method.

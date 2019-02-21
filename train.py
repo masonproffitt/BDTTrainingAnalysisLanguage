@@ -11,9 +11,9 @@ events = f.AsATLASEvents()
 
 # Next, get the jet pT's, which we want to look at.
 jet_pts = events.SelectMany(
-    'lambda e: e.Jets("AntiKt4EMTopoJets")').Select("lambda j: j.pt()")
+    'lambda e: e.Jets("AntiKt4EMTopoJets")').Select("lambda j: (j.pt(), j.eta())")
 
 # Save it to a dataframe
-training_df = jet_pts.AsPandasDF(columns=['JetPt']).value()
+training_df = jet_pts.AsPandasDF(columns=['JetPt', 'JetEta']).value()
 
 print(training_df)

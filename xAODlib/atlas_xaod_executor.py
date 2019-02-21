@@ -1,4 +1,4 @@
-# Executor and code for the ATLAS xaod input files
+# Executor and code for the ATLAS xAOD input files
 import tempfile
 from shutil import copyfile
 import os
@@ -41,6 +41,29 @@ class query_ast_visitor(ast.NodeVisitor):
 
     def class_declaration_code(self):
         return self._gc.class_declaration_code()
+
+    def visit (self, node):
+        '''Visit a note. If the node already has a rep, then it has been visited and we
+        do not need to visit it again.
+
+        node - if the node has a rep, just return
+
+        '''
+        if hasattr(node, 'rep'):
+            return
+        else:
+            return ast.NodeVisitor.visit(self, node)
+
+    def generic_visit(self, node):
+        '''Visit a generic node. If the node already has a rep, then it has been
+        visited once and we do not need to visit it again.
+
+        node - If the node has a rep, do not visit it.
+    '''
+        if hasattr(node, 'rep'):
+            return
+        else:
+            return ast.NodeVisitor.generic_visit(self, node)
 
     def resolve_id(self, id):
         'Look up the in our local dict'
@@ -147,10 +170,6 @@ class query_ast_visitor(ast.NodeVisitor):
 
         rep = self._result
         select_ast.rep = rep
-
-    def visit_AtlasXAODFileStream(self, node):
-        self.generic_visit(node)
-        pass
 
     def visit_SelectMany(self, node):
         r'''

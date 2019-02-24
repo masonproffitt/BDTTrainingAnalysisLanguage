@@ -1,21 +1,21 @@
 # Executor and code for the ATLAS xAOD input files
+from xAODlib.generated_code import generated_code
+import xAODlib.statement as statement
+from xAODlib.expression_ast import assure_lambda
+#from xAODlib.AtlasEventStream import AtlasXAODFileStream
+import xAODlib.AtlasEventStream
+from cpplib.cpp_vars import unique_name
+import cpplib.cpp_ast as cpp_ast
+from cpplib.cpp_representation import cpp_variable, cpp_collection
+
+import pandas as pd
+import uproot
+import ast
 import tempfile
 from shutil import copyfile
 import os
 from urllib.parse import urlparse
 import jinja2
-from xAODlib.generated_code import generated_code
-import xAODlib.statement as statement
-from xAODlib.expression_ast import assure_lambda
-from xAODlib.cpp_representation import cpp_variable, cpp_collection
-#from xAODlib.AtlasEventStream import AtlasXAODFileStream
-import xAODlib.AtlasEventStream
-from xAODlib.cpp_vars import unique_name
-
-
-import pandas as pd
-import uproot
-import ast
 
 
 class query_ast_visitor(ast.NodeVisitor):
@@ -66,14 +66,19 @@ class query_ast_visitor(ast.NodeVisitor):
         else:
             return ast.NodeVisitor.generic_visit(self, node)
 
-    def get_rep(self, node, use_generic_visit = False):
+    def get_rep(self, node, use_generic_visit = False, reset_result = None):
         r'''Return the rep for the node. If it isn't set yet, then run our visit on it.
 
         node - The ast node to generate a representation for.
         use_generic_visit - if true do generic_visit rather than visit.
+        reset_result - Reset the _result variable to this value if requeted.
         '''
         if not hasattr(node, 'rep'):
             self.generic_visit(node) if use_generic_visit else self.visit(node)
+
+        # Reset the result
+        if reset_result is not None:
+            self._result = reset_result
 
         return node.rep
 
@@ -139,8 +144,12 @@ class query_ast_visitor(ast.NodeVisitor):
         # What kind of a call is this?
         if type(call_node.func) is ast.Lambda:
             self.visit_Call_Lambda(call_node)
-        else:
+        elif type(call_node.func) is ast.Attribute:
             self.visit_Call_Member(call_node)
+        elif type(call_node.func) is cpp_ast.CPPCodeValue:
+            self._result = cpp_ast.process_ast_node(self, self._gc, self._result, call_node)
+        else:
+            raise BaseException("Do not know how to call at " + type(call_node.func).__name__)
         call_node.rep = self._result
 
     def visit_Tuple(self, tuple_node):
@@ -248,6 +257,18 @@ class atlas_xaod_executor:
         'Copy a file to a final directory'
         j2_env.get_template(template_file).stream(
             info).dump(final_dir + '/' + template_file)
+    
+    def apply_ast_transformations(self, ast):
+        r'''
+        Run through all the transformations that we have on tap to be run on the client side.
+        Return a (possibly) modified ast.
+        '''
+
+        # Any C++ custom code needs to be threaded into the ast
+        ast = cpp_ast.cpp_ast_finder().visit(ast)
+
+        # And return the modified ast
+        return ast
 
     def evaluate(self, ast):
         r"""

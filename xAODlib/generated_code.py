@@ -13,6 +13,10 @@ class generated_code:
         'Declare a variable as an instance of the query class'
         self._class_vars += [(type, name)]
 
+    def declare_variable(self, type, name):
+        'Declare a variable at the current scope'
+        self._scope_stack[-1].declare_variable(type, name)
+
     def add_statement(self, st):
         self._scope_stack[-1].add_statement(st)
         if isinstance(st, block):

@@ -65,13 +65,19 @@ class ObjectStream:
         r"""
         Trigger the evaluation of the AST.
         """
-
-        exe = find_executor()
-        exe.visit(self._ast)
-        if len(exe.executors) != 1:
+        # Find the executor
+        exe_finder = find_executor()
+        exe_finder.visit(self._ast)
+        if len(exe_finder.executors) != 1:
             raise BaseException(
-                "Unable to find a single, unique, executor for expression (found " + str(len(exe.executors)) + ").")
-        return exe.executors[0].evaluate(self._ast)
+                "Unable to find a single, unique, executor for expression (found " + str(len(exe_finder.executors)) + ").")
+        exe = exe_finder.executors[0]
+
+        # Apply any local transformations required.
+        ast = exe.apply_ast_transformations(self._ast)
+
+        # Now, find the executor and send it the AST
+        return exe.evaluate(ast)
 
 
 class find_executor(ast.NodeVisitor):

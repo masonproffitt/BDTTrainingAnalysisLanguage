@@ -71,7 +71,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         node - The ast node to generate a representation for.
         use_generic_visit - if true do generic_visit rather than visit.
-        reset_result - Reset the _result variable to this value if requeted.
+        reset_result - Reset the _result variable to this value if requested.
         '''
         if not hasattr(node, 'rep'):
             self.generic_visit(node) if use_generic_visit else self.visit(node)

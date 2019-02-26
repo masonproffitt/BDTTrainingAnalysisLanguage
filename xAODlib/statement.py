@@ -6,14 +6,21 @@ class block:
 
     def __init__(self):
         self._statements = []
+        self._variables = []
 
     def add_statement(self, s):
         'Add statement s to the list of statements'
         self._statements += [s]
 
+    def declare_variable(self, t, n):
+        'Declare a variable of type t and name n at the top of this scope block'
+        self._variables += [(t,n)]
+
     def emit(self, e):
         'Render the block of code'
         e.add_line("{")
+        for v_t, v_n in self._variables:
+            e.add_line("{0} {1};".format(v_t, v_n))
         for s in self._statements:
             s.emit(e)
         e.add_line("}")
@@ -45,10 +52,10 @@ class book_ttree:
         'Emit the book statement for a tree'
         e.add_line('ANA_CHECK (book (TTree ("{0}", "My analysis ntuple")));'.format(
             self._tree_name))
-        e.add_line('auto mytree = tree ("{0}");'.format(self._tree_name))
+        e.add_line('auto myTree = tree ("{0}");'.format(self._tree_name))
         for var_pair in self._leaves:
             e.add_line(
-                'mytree->Branch("{0}", &{1});'.format(var_pair[0], var_pair[1]))
+                'myTree->Branch("{0}", &{1});'.format(var_pair[0], var_pair[1]))
 
 
 class ttree_fill:
@@ -81,3 +88,14 @@ class set_var:
 
     def emit(self, e):
         e.add_line('{0} = {1};'.format(self._target, self._value))
+
+class arbitrary_statement:
+    'An arbitrary line of C++ code. Avoid if possible, as it makes analysis impossible'
+    def __init__(self, line):
+        self._line = line
+
+    def emit(self, e):
+        l = self._line
+        if not l.endswith(';'):
+            l += ';'
+        e.add_line(l)

@@ -1,20 +1,21 @@
-# Executor and code for the ATLAS xaod input files
+# Executor and code for the ATLAS xAOD input files
+from xAODlib.generated_code import generated_code
+import xAODlib.statement as statement
+from xAODlib.expression_ast import assure_lambda
+#from xAODlib.AtlasEventStream import AtlasXAODFileStream
+import xAODlib.AtlasEventStream
+from cpplib.cpp_vars import unique_name
+import cpplib.cpp_ast as cpp_ast
+from cpplib.cpp_representation import cpp_variable, cpp_collection
+
+import pandas as pd
+import uproot
+import ast
 import tempfile
 from shutil import copyfile
 import os
 from urllib.parse import urlparse
 import jinja2
-from xAODlib.generated_code import generated_code
-import xAODlib.statement as statement
-from xAODlib.expression_ast import assure_lambda
-from xAODlib.cpp_representation import cpp_variable, cpp_collection
-#from xAODlib.AtlasEventStream import AtlasXAODFileStream
-import xAODlib.AtlasEventStream
-
-
-import pandas as pd
-import uproot
-import ast
 
 
 class query_ast_visitor(ast.NodeVisitor):
@@ -41,6 +42,45 @@ class query_ast_visitor(ast.NodeVisitor):
 
     def class_declaration_code(self):
         return self._gc.class_declaration_code()
+
+    def visit (self, node):
+        '''Visit a note. If the node already has a rep, then it has been visited and we
+        do not need to visit it again.
+
+        node - if the node has a rep, just return
+
+        '''
+        if hasattr(node, 'rep'):
+            return
+        else:
+            return ast.NodeVisitor.visit(self, node)
+
+    def generic_visit(self, node):
+        '''Visit a generic node. If the node already has a rep, then it has been
+        visited once and we do not need to visit it again.
+
+        node - If the node has a rep, do not visit it.
+    '''
+        if hasattr(node, 'rep'):
+            return
+        else:
+            return ast.NodeVisitor.generic_visit(self, node)
+
+    def get_rep(self, node, use_generic_visit = False, reset_result = None):
+        r'''Return the rep for the node. If it isn't set yet, then run our visit on it.
+
+        node - The ast node to generate a representation for.
+        use_generic_visit - if true do generic_visit rather than visit.
+        reset_result - Reset the _result variable to this value if requested.
+        '''
+        if not hasattr(node, 'rep'):
+            self.generic_visit(node) if use_generic_visit else self.visit(node)
+
+        # Reset the result
+        if reset_result is not None:
+            self._result = reset_result
+
+        return node.rep
 
     def resolve_id(self, id):
         'Look up the in our local dict'
@@ -104,34 +144,51 @@ class query_ast_visitor(ast.NodeVisitor):
         # What kind of a call is this?
         if type(call_node.func) is ast.Lambda:
             self.visit_Call_Lambda(call_node)
-        else:
+        elif type(call_node.func) is ast.Attribute:
             self.visit_Call_Member(call_node)
+        elif type(call_node.func) is cpp_ast.CPPCodeValue:
+            self._result = cpp_ast.process_ast_node(self, self._gc, self._result, call_node)
+        else:
+            raise BaseException("Do not know how to call at " + type(call_node.func).__name__)
+        call_node.rep = self._result
+
+    def visit_Tuple(self, tuple_node):
+        r'''
+        Process a tuple. We visit each component of it, and build up a representation from each result.
+
+        See github bug #21 for the special case of dealing with (x1, x2, x3)[0].
+        '''
+        tuple_node.rep = tuple(self.get_rep(e) for e in tuple_node.elts)
+        self._result = tuple_node.rep
 
     def visit_CreatePandasDF(self, node):
         'Generate the code to convert to a pandas DF'
         self.generic_visit(node)
 
     def visit_CreateTTreeFile(self, node):
-        'This AST means we are taking an iterable and converting it to a file.'
-        self.generic_visit(node)
-
+        '''This AST means we are taking an iterable and converting it to a file.
+        '''
         # For each incoming variable, we need to declare something we are going to write.
-        var_names = [(name, "_"+name) for name in node.column_names]
-        self._gc.declare_class_variable('float', var_names[0][1])
+        var_names = [(name, unique_name(name, is_class_var=True)) for name in node.column_names]
+        for cv in var_names:
+            self._gc.declare_class_variable('float', cv[1])
 
         # Next, emit the booking code
-        self._gc.add_book_statement(statement.book_ttree(
-            "analysis", [(var_names[0][0], var_names[0][1])]))
+        self._gc.add_book_statement(statement.book_ttree("analysis", var_names))
 
-        # Get the variable we need to run against.
-        # Note that rep was filled in when we visited the ast earlier in this method.
-        v_rep = node.source.rep
+        # For each varable we need to save, put it in the C++ variable we've created above
+        # and then trigger a fill statement once that is all done.
 
-        # Next, fill the variable with something
-        self._gc.add_statement(statement.set_var(
-            var_names[0][1], v_rep.name()))
+        self.generic_visit(node)
+        v_rep = self.get_rep(node.source)
+        if type(v_rep) is not tuple:
+            v_rep = (v_rep,)
+        if len(v_rep) != len(var_names):
+            raise BaseException("Number of columns ({0}) is not the same as labels ({1}) in TTree creation".format(len(v_rep), len(var_names)))
 
-        # And trigger a fill!
+        for e in zip(v_rep, var_names):
+            self._gc.add_statement(statement.set_var(e[1][1], e[0].name()))
+
         self._gc.add_statement(statement.ttree_fill("analysis"))
 
         # And we are a terminal, so pop off the block.
@@ -147,10 +204,6 @@ class query_ast_visitor(ast.NodeVisitor):
 
         rep = self._result
         select_ast.rep = rep
-
-    def visit_AtlasXAODFileStream(self, node):
-        self.generic_visit(node)
-        pass
 
     def visit_SelectMany(self, node):
         r'''
@@ -204,6 +257,18 @@ class atlas_xaod_executor:
         'Copy a file to a final directory'
         j2_env.get_template(template_file).stream(
             info).dump(final_dir + '/' + template_file)
+    
+    def apply_ast_transformations(self, ast):
+        r'''
+        Run through all the transformations that we have on tap to be run on the client side.
+        Return a (possibly) modified ast.
+        '''
+
+        # Any C++ custom code needs to be threaded into the ast
+        ast = cpp_ast.cpp_ast_finder().visit(ast)
+
+        # And return the modified ast
+        return ast
 
     def evaluate(self, ast):
         r"""

@@ -255,8 +255,7 @@ class atlas_xaod_executor:
 
     def copy_template_file(self, j2_env, info, template_file, final_dir):
         'Copy a file to a final directory'
-        j2_env.get_template(template_file).stream(
-            info).dump(final_dir + '/' + template_file)
+        j2_env.get_template(template_file).stream(info).dump(final_dir + '/' + template_file)
     
     def apply_ast_transformations(self, ast):
         r'''

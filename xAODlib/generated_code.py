@@ -8,6 +8,7 @@ class generated_code:
         self._book_block = block()
         self._class_vars = []
         self._scope_stack = [self._block]
+        self._include_files = []
 
     def declare_class_variable(self, type, name):
         'Declare a variable as an instance of the query class'
@@ -21,6 +22,12 @@ class generated_code:
         self._scope_stack[-1].add_statement(st)
         if isinstance(st, block):
             self._scope_stack.append(st)
+
+    def add_include (self, path):
+        self._include_files += [path]
+
+    def include_files(self):
+        return self._include_files
 
     def pop_scope(self):
         self._scope_stack.pop()

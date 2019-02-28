@@ -1,7 +1,10 @@
 #include <AsgTools/MessageCheck.h>
 #include <analysis/query.h>
 #include <xAODEventInfo/EventInfo.h>
-#include <xAODJet/JetContainer.h>
+
+{% for i in include_files %}
+#include "{{i}}"
+{% endfor %}
 
 #include <TTree.h>
 

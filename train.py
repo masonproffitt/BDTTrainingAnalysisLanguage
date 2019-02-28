@@ -18,4 +18,12 @@ jet_pts = events.SelectMany(
 # Save it to a dataframe
 training_df = jet_pts.AsPandasDF(columns=['JetPt', 'JetEta', 'JetWidth']).value()
 
+# Following works, but is commented out for now till we can integrate it above. Just
+# for show, in short.
+# track_pts = events.SelectMany(
+#      'lambda e: e.Tracks("InDetTrackParticles")').Select("lambda t: (t.pt(), t.eta())")
+
+# # Save it to a dataframe
+# training_df = track_pts.AsPandasDF(columns=['TrackPt', 'TrackEta']).value()
+
 print(training_df)

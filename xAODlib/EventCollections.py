@@ -2,7 +2,7 @@
 import cpplib.cpp_ast as cpp_ast
 import ast
 from cpplib.cpp_vars import unique_name
-from cpplib.cpp_representation import cpp_collection
+from cpplib.cpp_representation import cpp_collection, cpp_variable
 
 
 # all the collections types that are availible. This is required because C++
@@ -17,6 +17,12 @@ collections = [
         'function_name': "Tracks",
         'include_files': ['xAODTracking/TrackParticleContainer.h'],
         'container_type': 'const xAOD::TrackParticleContainer*'
+    },
+    {
+        'function_name': "EventInfo",
+        'include_files': ['xAODEventInfo/EventInfo.h'],
+        'container_type': 'const xAOD::EventInfo*',
+        'is_collection': False
     }
 ]
 
@@ -39,7 +45,12 @@ def getCollection(info, call_node):
     r.running_code += ['{0} result = 0;'.format(info['container_type']),
                         'ANA_CHECK (evtStore()->retrieve(result, collection_name));']
     r.result = 'result'
-    r.result_rep = cpp_collection(unique_name(info['function_name'].lower()), cpp_type=info['container_type'], is_pointer=True)
+
+    is_collection = info['is_collection'] if 'is_collection' in info else True
+    if is_collection:
+        r.result_rep = cpp_collection(unique_name(info['function_name'].lower()), cpp_type=info['container_type'], is_pointer=True)
+    else:
+        r.result_rep = cpp_variable(unique_name(info['function_name'].lower()), cpp_type=info['container_type'], is_pointer=True)
 
     # Replace it as the function that is going to get called.
     call_node.func = r

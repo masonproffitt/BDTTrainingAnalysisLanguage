@@ -61,6 +61,10 @@ class cpp_ast_finder(ast.NodeTransformer):
         WARNING: currently the namespace is global, so the parent type doesn't matter!
         '''
 
+        # Make sure all parts of this AST are visited properly before we attempt to
+        # understand the call.
+        self.generic_visit(node)
+
         # Examine the func to see if this is a member call.
         func = node.func
         if type(func.value) is not ast.Name:

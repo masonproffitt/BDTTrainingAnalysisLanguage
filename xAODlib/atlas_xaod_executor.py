@@ -105,23 +105,28 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_Call_Member(self, call_node):
         'Method call on an object'
 
-        # This is a 'real' call - that is, something we should know about rather than
-        # arbitrary python code.
-        object_call_against = self.resolve_id(call_node.func.value.id)
+        # figure out what we are calling against, and the
+        # method name we are going to be calling against.
+        calling_against = self.get_rep(call_node.func.value)
         function_name = call_node.func.attr
-
-        # Make sure the thing we are calling against has been "parsed"
-        self.visit(object_call_against)
 
         # We support member calls that directly translate only. Here, for example, this is only for
         # obj.pt() or similar. The translation is direct.
-        c_stub = object_call_against.rep.name() + ("->" if object_call_against.rep.is_pointer() else "->")
+        c_stub = calling_against.name() + ("->" if calling_against.is_pointer() else "->")
         self._result = cpp_variable(c_stub + function_name + "()")
+
+    def visit_Name(self, name_node):
+        'Visiting a name - which should represent something'
+        id = self.resolve_id(name_node.id)
+        if hasattr(id, "rep"):
+            name_node.rep = id.rep
+
 
     def visit_Call(self, call_node):
         r'''
         Very limited call forwarding.
         '''
+        self.generic_visit(call_node)
         # What kind of a call is this?
         if type(call_node.func) is ast.Lambda:
             self.visit_Call_Lambda(call_node)

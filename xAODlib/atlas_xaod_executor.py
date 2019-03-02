@@ -105,6 +105,9 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_Call_Member(self, call_node):
         'Method call on an object'
 
+        # Visit everything down a level.
+        self.generic_visit(call_node)
+
         # figure out what we are calling against, and the
         # method name we are going to be calling against.
         calling_against = self.get_rep(call_node.func.value)
@@ -118,15 +121,14 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_Name(self, name_node):
         'Visiting a name - which should represent something'
         id = self.resolve_id(name_node.id)
-        if hasattr(id, "rep"):
-            name_node.rep = id.rep
+        if isinstance(id, ast.AST):
+            name_node.rep = self.get_rep(id)
 
 
     def visit_Call(self, call_node):
         r'''
         Very limited call forwarding.
         '''
-        self.generic_visit(call_node)
         # What kind of a call is this?
         if type(call_node.func) is ast.Lambda:
             self.visit_Call_Lambda(call_node)

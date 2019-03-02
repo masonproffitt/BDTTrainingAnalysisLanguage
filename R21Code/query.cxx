@@ -1,6 +1,5 @@
 #include <AsgTools/MessageCheck.h>
 #include <analysis/query.h>
-#include <xAODEventInfo/EventInfo.h>
 
 {% for i in include_files %}
 #include "{{i}}"
@@ -39,11 +38,6 @@ StatusCode query :: execute ()
   // events, e.g. read input variables, apply cuts, and fill
   // histograms and trees.  This is where most of your actual analysis
   // code will go.
-
-  // retrieve the eventInfo object from the event store
-  // const xAOD::EventInfo *eventInfo = nullptr;
-  // ANA_CHECK (evtStore()->retrieve (eventInfo, "EventInfo"));
-  // ANA_MSG_INFO ("in execute, runNumber = " << eventInfo->runNumber() << ", eventNumber = " << eventInfo->eventNumber());
 
   {% for l in query_code %}
   {{l}}

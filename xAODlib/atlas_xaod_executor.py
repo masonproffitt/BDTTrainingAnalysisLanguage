@@ -113,7 +113,8 @@ class query_ast_visitor(ast.NodeVisitor):
         # Make sure the thing we are calling against has been "parsed"
         self.visit(object_call_against)
 
-        # Currently we support only calls against whatever the base object is.
+        # We support member calls that directly translate only. Here, for example, this is only for
+        # obj.pt() or similar. The translation is direct.
         c_stub = object_call_against.rep.name() + ("->" if object_call_against.rep.is_pointer() else "->")
         self._result = cpp_variable(c_stub + function_name + "()")
 

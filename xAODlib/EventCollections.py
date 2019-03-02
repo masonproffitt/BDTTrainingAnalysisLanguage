@@ -5,7 +5,7 @@ from cpplib.cpp_vars import unique_name
 from cpplib.cpp_representation import cpp_collection, cpp_variable
 
 
-# all the collections types that are availible. This is required because C++
+# all the collections types that are available. This is required because C++
 # is strongly typed, and thus we have to transmit this information.
 collections = [
     {

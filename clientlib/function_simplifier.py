@@ -17,11 +17,12 @@ def convolute(ast_g, ast_f):
 
     f_arg = ast.Name('x', ast.Load())
     call_g = ast.Call(l_g, [ast.Call(l_f, [f_arg], [])], [])
-    # TODO: Turn call_g into a lambda function here so it can sit at a call site.
+
+    args = ast.arguments(args=[ast.arg(arg='x')])
+    call_g_lambda = ast.Lambda(args=args, body=ast.Expr(call_g))
 
     # Build a new call to nest the functions
-    f = ast.Call(call_g, [f_arg], [])
-    ast_f.body[0].value = f
+    ast_f.body[0].value = call_g_lambda
 
     return ast_f
 
@@ -66,7 +67,7 @@ class simplify_chained_calls(ast.NodeTransformer):
             expr = self.visit(call_node.func.body)
             return expr
         else:
-            self.generic_visit(call_node)
+            call_node = self.generic_visit(call_node)
         return call_node
 
     def visit_Name(self, name_node):

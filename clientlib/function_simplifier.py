@@ -19,7 +19,7 @@ def convolute(ast_g, ast_f):
     call_g = ast.Call(l_g, [ast.Call(l_f, [f_arg], [])], [])
 
     args = ast.arguments(args=[ast.arg(arg='x')])
-    call_g_lambda = ast.Lambda(args=args, body=ast.Expr(call_g))
+    call_g_lambda = ast.Lambda(args=args, body=call_g)
 
     # Build a new call to nest the functions
     ast_f.body[0].value = call_g_lambda

@@ -8,6 +8,7 @@ from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
 from cpplib.cpp_representation import cpp_variable, cpp_collection
 from clientlib.tuple_simplifier import remove_tuple_subscripts
+from clientlib.function_simplifier import simplify_chained_calls
 
 import pandas as pd
 import uproot
@@ -253,6 +254,7 @@ class atlas_xaod_executor:
         '''
 
         # Do tuple resolutions. This might eliminate a whole bunch fo code!
+        ast = simplify_chained_calls().visit(ast)
         ast = remove_tuple_subscripts().visit(ast)
 
         # Any C++ custom code needs to be threaded into the ast

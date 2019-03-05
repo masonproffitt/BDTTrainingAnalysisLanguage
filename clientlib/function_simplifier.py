@@ -15,12 +15,12 @@ def convolute(ast_g, ast_f):
     l_g = ast_g.body[0].value
     l_f = ast_f.body[0].value
 
-    f_arg = ast.Name('x')
-    call_g = ast.Call(l_g, [ast.Call(l_f, [f_arg])])
+    f_arg = ast.Name('x', ast.Load())
+    call_g = ast.Call(l_g, [ast.Call(l_f, [f_arg], [])], [])
     # TODO: Turn call_g into a lambda function here so it can sit at a call site.
 
     # Build a new call to nest the functions
-    f = ast.Call(call_g, [f_arg])
+    f = ast.Call(call_g, [f_arg], [])
     ast_f.body[0].value = f
 
     return ast_f

@@ -53,6 +53,9 @@ class pretty_print_visitor(ast.NodeVisitor):
             self._s.write('  '*self._indent)
         self._s.write(')')
 
+    def visit_Num(self, node):
+        self._s.write('Num(n={0})'.format(node.n))
+
 def pretty_print (ast):
     'Pretty print an ast'
     pretty_print_visitor(stdout).visit(ast)

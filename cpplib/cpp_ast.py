@@ -67,7 +67,7 @@ class cpp_ast_finder(ast.NodeTransformer):
 
         # Examine the func to see if this is a member call.
         func = node.func
-        if type(func.value) is not ast.Name:
+        if (type(func) is not ast.Attribute) or (type(func.value) is not ast.Name):
             return node
 
         # Next, get the name and see if we can find it somewhere.

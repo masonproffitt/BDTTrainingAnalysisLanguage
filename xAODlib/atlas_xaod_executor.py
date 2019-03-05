@@ -32,6 +32,9 @@ class query_ast_visitor(ast.NodeVisitor):
         self._var_dict = {}
         self._result = None
 
+    def include_files(self):
+        return self._gc.include_files()
+
     def emit_query(self, e):
         'Emit the parsed lines'
         self._gc.emit_query_code(e)
@@ -86,23 +89,6 @@ class query_ast_visitor(ast.NodeVisitor):
         'Look up the in our local dict'
         return self._var_dict[id] if id in self._var_dict else id
 
-    def call_against_current_obj(self, obj, object_call_method, args):
-        'Call against the current object'
-        c_stub = obj.name() + ("->" if obj.is_pointer() else "->")
-        self._result = cpp_variable(
-            c_stub + object_call_method + "()", is_pointer=False)
-        pass
-
-    def call_base_collection(self, object_call_method, args):
-        'Call against the base collection'
-        if object_call_method == "Jets":
-            collection_name = args[0].s
-            self._gc.add_statement(
-                statement.xaod_get_collection(collection_name, "jets"))
-            self._result = cpp_collection("jets", is_pointer=True)
-        else:
-            raise BaseException("Only Jets is understood right now")
-
     def visit_Call_Lambda(self, call_node):
         'Call to a lambda function. This is book keeping and we dive in'
 
@@ -119,23 +105,25 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_Call_Member(self, call_node):
         'Method call on an object'
 
-        # This is a 'real' call - that is, something we should know about rather than
-        # arbitrary python code.
-        object_call_against = self.resolve_id(call_node.func.value.id)
+        # Visit everything down a level.
+        self.generic_visit(call_node)
+
+        # figure out what we are calling against, and the
+        # method name we are going to be calling against.
+        calling_against = self.get_rep(call_node.func.value)
         function_name = call_node.func.attr
 
-        # Make sure the thing we are calling against has been "parsed"
-        self.visit(object_call_against)
+        # We support member calls that directly translate only. Here, for example, this is only for
+        # obj.pt() or similar. The translation is direct.
+        c_stub = calling_against.name() + ("->" if calling_against.is_pointer() else "->")
+        self._result = cpp_variable(c_stub + function_name + "()")
 
-        # Calls are different depending upon what they are against.
-        #  - Global space - then it is a function (like "sin" or "len")
-        #  - an object - some object we know something about
-        #  - The ROOT object collection.
-        if type(object_call_against) is xAODlib.AtlasEventStream.AtlasXAODFileStream:
-            self.call_base_collection(function_name, call_node.args)
-        else:
-            self.call_against_current_obj(
-                object_call_against.rep, function_name, call_node.args)
+    def visit_Name(self, name_node):
+        'Visiting a name - which should represent something'
+        id = self.resolve_id(name_node.id)
+        if isinstance(id, ast.AST):
+            name_node.rep = self.get_rep(id)
+
 
     def visit_Call(self, call_node):
         r'''
@@ -255,8 +243,7 @@ class atlas_xaod_executor:
 
     def copy_template_file(self, j2_env, info, template_file, final_dir):
         'Copy a file to a final directory'
-        j2_env.get_template(template_file).stream(
-            info).dump(final_dir + '/' + template_file)
+        j2_env.get_template(template_file).stream(info).dump(final_dir + '/' + template_file)
     
     def apply_ast_transformations(self, ast):
         r'''
@@ -283,6 +270,7 @@ class atlas_xaod_executor:
         book_code = cpp_source_emitter()
         qv.emit_book(book_code)
         class_dec_code = qv.class_declaration_code()
+        includes = qv.include_files()
 
         # Create a temp directory in which we can run everything.
         with tempfile.TemporaryDirectory() as local_run_dir:
@@ -298,6 +286,7 @@ class atlas_xaod_executor:
             info['query_code'] = query_code.lines_of_query_code()
             info['book_code'] = book_code.lines_of_query_code()
             info['class_dec'] = class_dec_code
+            info['include_files'] = includes
 
             # Next, copy over and fill the template files
             template_dir = "./R21Code"

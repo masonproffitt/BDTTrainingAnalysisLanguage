@@ -2,7 +2,6 @@
 #
 # This is one mechanism to allow for a leaky abstraction.
 import ast
-from cpplib.cpp_representation import cpp_variable
 from cpplib.cpp_vars import unique_name
 import xAODlib.statement as statements
 
@@ -39,8 +38,12 @@ class CPPCodeValue (ast.AST):
         # the tuple might be ("obj", "j")).
         self.replacement_instance_obj = None
 
-        # A string representing the result value. This must be a simple variable.
+        # A string representing the result value. This must be a simple variable. It will get replaced
+        # in all the code lines above.
         self.result = None
+
+        # Representation to use for the resulting variable. Includes C++ type information.
+        self.result_rep = None
 
         # We have no further fields for the ast machinery to explore, so this is empty for now.
         self.fields=[]
@@ -58,6 +61,10 @@ class cpp_ast_finder(ast.NodeTransformer):
         WARNING: currently the namespace is global, so the parent type doesn't matter!
         '''
 
+        # Make sure all parts of this AST are visited properly before we attempt to
+        # understand the call.
+        self.generic_visit(node)
+
         # Examine the func to see if this is a member call.
         func = node.func
         if type(func.value) is not ast.Name:
@@ -74,7 +81,7 @@ class cpp_ast_finder(ast.NodeTransformer):
 def process_ast_node(visitor, gc, current_loop_value, call_node):
     r'''Inject the proper code into the output stream to deal with this C++ code.
     
-    We expect this to be run at the back-end.
+    We expect this to be run on the back-end of the system.
 
     visitor - The node visitor that is converting the code into C++
     gc - the generated code object that we fill with actual code
@@ -86,11 +93,15 @@ def process_ast_node(visitor, gc, current_loop_value, call_node):
     '''
 
     # We write everything into a new scope to prevent conflicts. So we have to declare the result ahead of time.
-    result_rep = cpp_variable(unique_name("cppResult"))
-    gc.declare_variable("float", result_rep.name())
+    cpp_ast_node = call_node.func
+    result_rep = cpp_ast_node.result_rep
+    gc.declare_variable(result_rep.cpp_type(), result_rep.name())
+
+    # Include files
+    for i in cpp_ast_node.include_files:
+        gc.add_include(i)
 
     # Build the dictionary for replacement
-    cpp_ast_node = call_node.func
     repl_list = []
     if cpp_ast_node.replacement_instance_obj is not None:
         repl_list += [(cpp_ast_node.replacement_instance_obj[0], visitor.resolve_id(cpp_ast_node.replacement_instance_obj[1]).rep.name())]

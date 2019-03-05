@@ -14,6 +14,8 @@ class AtlasXAODFileStream(ast.AST):
 
     def __init__(self, ds_url):
         self.dataset_url = ds_url
+        # Set a rep for ourselves, but it should never be directly used.
+        self.rep = cpp_variable("bogus-do-not-use")
 
     def get_executor(self):
         return atlas_xaod_executor(self.dataset_url)

@@ -36,9 +36,10 @@ class cpp_variable(cpp_rep_base):
     The representation for a simple variable.
     '''
 
-    def __init__(self, name, is_pointer=False):
+    def __init__(self, name, is_pointer=False, cpp_type = None):
         self._cpp_name = name
         self._is_pointer = is_pointer
+        self._cpp_type = cpp_type
 
     def name(self):
         return self._cpp_name
@@ -46,19 +47,22 @@ class cpp_variable(cpp_rep_base):
     def is_pointer(self):
         return self._is_pointer
 
+    def cpp_type(self):
+        return self._cpp_type
+
 
 class cpp_collection(cpp_variable):
     r'''
     The representation for a collection. Something that can be iterated over.
     '''
 
-    def __init__(self, name, is_pointer=False):
+    def __init__(self, name, is_pointer=False, cpp_type=None):
         r'''Remember the C++ name of this variable
 
         name - The name of the variable we are going to save here
         is_pointer - do we need to de-ref it to access it?
         '''
-        cpp_variable.__init__(self, name, is_pointer)
+        cpp_variable.__init__(self, name, is_pointer, cpp_type=cpp_type)
 
     def loop_over_collection(self, gc):
         r'''

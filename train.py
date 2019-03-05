@@ -2,8 +2,6 @@
 
 # Get the import working from local files
 from clientlib.DataSets import EventDataSet
-import xAODlib.Jets
-import xAODlib.EventCollections
 
 # The input file we are going to use to do the training
 f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
@@ -18,7 +16,12 @@ events = f.AsATLASEvents()
 # # Save it to a dataframe
 # training_df = jet_pts.AsPandasDF(columns=['JetPt', 'JetEta', 'JetWidth']).value()
 
-training_df = events.Select('lambda e: e.EventInfo("EventInfo")').Select('lambda e1: (e1.runNumber(), e1.eventNumber())').AsPandasDF(columns=['RunNumber', 'EventNumber']).value()
+#training_df = events.Select('lambda e: e.EventInfo("EventInfo")').Select('lambda e1: (e1.runNumber(), e1.eventNumber())').AsPandasDF(columns=['RunNumber', 'EventNumber']).value()
+
+training_df = events.SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets")') \
+                    .Select('lambda j: j.pt()') \
+                    .AsPandasDF(columns=['JetPt']) \
+                    .value()
 
 # Following works, but is commented out for now till we can integrate it above. Just
 # for show, in short.

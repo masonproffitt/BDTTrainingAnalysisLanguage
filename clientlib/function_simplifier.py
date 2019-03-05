@@ -5,7 +5,7 @@ from clientlib.query_ast import Select
 def convolute(ast_g, ast_f):
     'Return an AST that represents g(f(args))'
 
-    # Santity checks. For example, g can have only one input argument (e.g. f's result)
+    # Sanity checks. For example, g can have only one input argument (e.g. f's result)
     if (type(ast_g.body[0]) is not ast.Expr) or (type(ast_f.body[0]) is not ast.Expr):
         raise BaseException("Only lambdas in Selects!")
     if (type(ast_g.body[0].value) is not ast.Lambda) or (type(ast_f.body[0].value) is not ast.Lambda):

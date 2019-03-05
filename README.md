@@ -35,6 +35,8 @@ Platform requirements:
 - pip install uproot jinja2
   - jinja2 is already part of anaconda3
 - vsyscall implementation (on Linux hosts, this needs to be either native or emulated)
+  - This is required by the old build of bash in the atlas/analysisbase image.
+  - Depending on your kernel options, this may or may not work automatically. If not, try adding [`vsyscall=emulate`](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/Documentation/admin-guide/kernel-parameters.txt?h=v4.19.26#n4908 "vsyscall kernel parameter documentation") to your kernel parameters at boot. If that doesn't work, make sure [`X86_VSYSCALL_EMULATION`](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/arch/x86/Kconfig?h=v4.19.26#n1209 "vsyscall Kconfig option") is enabled in your kernel config.
 
 
 Tested on:

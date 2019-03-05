@@ -7,6 +7,7 @@ import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
 from cpplib.cpp_representation import cpp_variable, cpp_collection
+from clientlib.tuple_simplifier import remove_tuple_subscripts
 
 import pandas as pd
 import uproot
@@ -250,6 +251,9 @@ class atlas_xaod_executor:
         Run through all the transformations that we have on tap to be run on the client side.
         Return a (possibly) modified ast.
         '''
+
+        # Do tuple resolutions. This might eliminate a whole bunch fo code!
+        ast = remove_tuple_subscripts().visit(ast)
 
         # Any C++ custom code needs to be threaded into the ast
         ast = cpp_ast.cpp_ast_finder().visit(ast)

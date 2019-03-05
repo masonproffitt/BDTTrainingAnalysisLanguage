@@ -38,10 +38,10 @@ class simplify_chained_calls(ast.NodeTransformer):
 
     def visit_Select(self, node):
         'Select call made - if this is a chained select call, then we can perhaps combine functions'
+        parent_select = self.visit(node.source)
         # If we are a chained select, grab that select.
-        if type(node.source) is not Select:
+        if type(parent_select) is not Select:
             return node
-        parent_select = node.source
 
         # Select(x: f(x)).Select(y: g(y)) needs to be turned into g(f(x)).
         func_g = node.selection

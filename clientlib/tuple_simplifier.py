@@ -22,6 +22,6 @@ class remove_tuple_subscripts(ast.NodeTransformer):
             if index >= len(subscript.value.elts):
                 raise BaseException("Attempt to index tuple out of bounds")
             
-            return subscript.value.elts[index]
+            return self.visit(subscript.value.elts[index])
 
-        return subscript
+        return self.generic_visit(subscript)

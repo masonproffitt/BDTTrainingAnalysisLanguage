@@ -254,8 +254,9 @@ class atlas_xaod_executor:
         '''
 
         # Do tuple resolutions. This might eliminate a whole bunch fo code!
+        #TODO: Remove this debugging line
         from clientlib.ast_util import pretty_print
-        
+
         ast = simplify_chained_calls().visit(ast)
         ast = remove_tuple_subscripts().visit(ast)
 

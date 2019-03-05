@@ -6,7 +6,7 @@ import xAODlib.Jets
 import xAODlib.EventCollections
 
 # The input file we are going to use to do the training
-f = EventDataSet(r"file://C:/Users/gordo/Documents/mc16_13TeV/AOD.16300985._000011.pool.root.1")
+f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
 
 # Turn into an event stream that is known by ATLAS.
 events = f.AsATLASEvents()
@@ -21,8 +21,8 @@ events = f.AsATLASEvents()
 
 # # Save it to a dataframe
 # training_df = jet_pts.AsPandasDF(columns=['JetPt', 'JetEta', 'JetWidth']).value()
-training_df = events.Select('lambda e: e.EventInfo("EventInfo")') \
-    .Select('lambda e1: ((e1.runNumber(), e1.eventNumber()))') \
+training_df = events.Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
+    .Select('lambda e1: ((e1[0].runNumber(), e1[0].eventNumber()))') \
     .Select('lambda e2: e2[0]') \
     .AsPandasDF(columns=['RunNumber']).value()
 

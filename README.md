@@ -34,11 +34,13 @@ Platform requirements:
 - Docker (really should move to singularity if possible)
 - pip install uproot jinja2
   - jinja2 is already part of anaconda3
+- vsyscall implementation (on Linux hosts, this needs to be either native or emulated)
 
 
 Tested on:
 
 - Windows 10
+- Arch Linux (x86_64 kernel version 4.20.13)
 
 ## Implementation
 

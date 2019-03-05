@@ -1,6 +1,10 @@
 # Code to help specify and work with datasets on the client end.
 from xAODlib.AtlasEventStream import AtlasEventStream
 
+# Bring in all the machinery to process xAOD files. This adds
+# extra stuff to the processing engine to special case things.
+import xAODlib.Jets
+import xAODlib.EventCollections
 
 class EventDataSet:
     def __init__(self, url):

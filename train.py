@@ -2,8 +2,6 @@
 
 # Get the import working from local files
 from clientlib.DataSets import EventDataSet
-import xAODlib.Jets
-import xAODlib.EventCollections
 
 # The input file we are going to use to do the training
 f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")

@@ -12,10 +12,6 @@ f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
 events = f.AsATLASEvents()
 
 # # Next, get the jet pT's, which we want to look at.
-# event_info = events.Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))')
-# per_jet = event_info.SelectMany('lambda e: e[1].SelectMany(lambda j: (e[0], j))')
-# jet_dump = per_jet.Select('lambda j: j[0].runNumber()')
-# training_df = jet_dump.AsPandasDF(['RunNumber']).value()
 # jet_pts = events.SelectMany(
 #     'lambda e: e.Jets("AntiKt4EMTopoJets")').Select("lambda j: (j.pt(), j.eta(), j.getMomentFloat('Width'))")
 
@@ -24,10 +20,26 @@ events = f.AsATLASEvents()
 # training_df = events.SelectMany('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))[1]') \
 #     .Select('lambda j: j.pt()') \
 #     .AsPandasDF(columns=['JetPt']).value()
-training_df = events.Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
-    .SelectMany('lambda e1: e1[1]') \
-    .Select('lambda j: j.pt()') \
-    .AsPandasDF(columns=['JetPt']).value()
+# training_df = events.Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
+#     .SelectMany('lambda e1: e1[1]') \
+#     .Select('lambda j: j.pt()') \
+#     .AsPandasDF(columns=['JetPt']).value()
+# training_df = events \
+#     .SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets")') \
+#     .Select('lambda j: j.pt()') \
+#     .Select('lambda pt1: pt1') \
+#     .AsPandasDF(columns=['JetPt']).value()
+# training_df = events \
+#     .Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
+#     .SelectMany('lambda e1: e1[1].Select(lambda j1: (j1, j1))') \
+#     .Select('lambda j: j[0].pt()') \
+#     .AsPandasDF(columns=['JetPt']).value()
+# -->
+training_df = events \
+    .Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
+    .SelectMany('lambda e1: e1[1].Select(lambda j1: (e1[0].runNumber(), j1.pt()))') \
+    .AsPandasDF(columns=['RunNumber', 'JetPt']).value()
+
 
 # Following works, but is commented out for now till we can integrate it above. Just
 # for show, in short.

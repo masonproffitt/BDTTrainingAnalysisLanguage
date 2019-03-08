@@ -56,6 +56,12 @@ class pretty_print_visitor(ast.NodeVisitor):
     def visit_Num(self, node):
         self._s.write('Num(n={0})'.format(node.n))
 
+    def visit_str(self, node):
+        self._s.write('"{0}"'.format(node))
+
+    def visit_Name(self, node):
+        self._s.write('Name(id="{0}")'.format(node.id))
+
 def pretty_print (ast):
     'Pretty print an ast'
     pretty_print_visitor(stdout).visit(ast)

@@ -282,6 +282,7 @@ class atlas_xaod_executor:
 
         # Create a temp directory in which we can run everything.
         with tempfile.TemporaryDirectory() as local_run_dir:
+            os.chmod(local_run_dir, 0o777)
 
             # Parse the dataset. Eventually, this needs to be normalized, but for now.
             (_, netloc, path, _, _, _) = urlparse(self._ds)
@@ -307,6 +308,8 @@ class atlas_xaod_executor:
             self.copy_template_file(j2_env, info, 'query.h', local_run_dir)
             self.copy_template_file(j2_env, info, 'runner.sh', local_run_dir)
 
+            os.chmod(os.path.join(local_run_dir, 'runner.sh'), 0o755)
+
             # Next, build the control python files by scanning the AST for what is needed
 
             # Build the C++ file
@@ -315,7 +318,7 @@ class atlas_xaod_executor:
             docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(
                 local_run_dir, datafile_dir)
             os.system(docker_cmd)
-            os.system("type {0}\\query.cxx".format(local_run_dir))
+            os.system("type " + os.path.join(local_run_dir, "query.cxx"))
 
             # Extract the result.
             output_file = "file://{0}/data.root".format(local_run_dir)

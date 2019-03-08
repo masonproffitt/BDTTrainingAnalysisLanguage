@@ -2,8 +2,6 @@
 
 # Get the import working from local files
 from clientlib.DataSets import EventDataSet
-import xAODlib.Jets
-import xAODlib.EventCollections
 
 # The input file we are going to use to do the training
 f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
@@ -39,7 +37,6 @@ training_df = events \
     .Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
     .SelectMany('lambda e1: e1[1].Select(lambda j1: (e1[0].runNumber(), e1[0].eventNumber(), j1.pt()))') \
     .AsPandasDF(columns=['RunNumber', 'EventNumber', 'JetPt']).value()
-
 
 # Following works, but is commented out for now till we can integrate it above. Just
 # for show, in short.

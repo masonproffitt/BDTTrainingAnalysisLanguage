@@ -1,6 +1,7 @@
 # Various node visitors to clean up nested function calls of various types.
 import ast
 from clientlib.query_ast import Select
+from clientlib.ast_util import lambda_body, replace_lambda_body
 
 def convolute(ast_g, ast_f):
     'Return an AST that represents g(f(args))'
@@ -58,17 +59,22 @@ class simplify_chained_calls(ast.NodeTransformer):
 
         # If we are a chained select, grab that select.
         parent_select = self.visit(node.source)
-        if type(parent_select) is not Select:
-            return node
+        if type(parent_select) is Select:
+            # Select(x: f(x)).SelectMany(y: g(y)) needs to be turned into SelectMany(x: g(f(x))).
+            func_g = node.selection
+            func_f = parent_select.selection
 
-        # Select(x: f(x)).SelectMany(y: g(y)) needs to be turned into SelectMany(x: g(f(x))).
-        func_g = node.selection
-        func_f = parent_select.selection
+            # Replace our SelectMany selection with this update, and then
+            # use the selects source for our own.
+            node.selection = self.generic_visit(convolute(func_g, func_f))
+            node.source = parent_select.source
 
-        # Replace our SelectMany selection with this update, and then
-        # use the select's source for our own.
-        node.selection = self.generic_visit(convolute(func_g, func_f))
-        node.source = parent_select.source
+        # If the SM's selection function ends in a select.
+        # SM(x: h(x).S(y: f(y))) ==> SM(x: h(x)).S(y: f(y))
+        select_body = lambda_body(node.selection)
+        if type(select_body) is Select:
+            node.selection = replace_lambda_body(node.selection, select_body.source)
+            node = Select(node, select_body.selection)
 
         # And return the parent select with the new selection function
         return node
@@ -76,7 +82,7 @@ class simplify_chained_calls(ast.NodeTransformer):
     def visit_Call(self, call_node):
         '''We are looking for cases where an argument is another function or expression.
         In that case, we want to try to get an evaluation of the argument, and replace it in the
-        AST of this function. This only works of the function we are calling is a labmda.
+        AST of this function. This only works of the function we are calling is a lambda.
         '''
         if type(call_node.func) is ast.Lambda:
             arg_asts = [self.visit(a) for a in call_node.args]

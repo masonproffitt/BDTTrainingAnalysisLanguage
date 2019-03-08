@@ -76,3 +76,32 @@ def wrap_lambda(l):
         raise BaseException('Attempt to wrap type {0} as a Lambda function, but it is not one!'.format(type(l)))
 
     return ast.Module(body=[ast.Expr(l)])
+
+def lambda_body(l):
+    '''
+    Given an AST lambda node, get the expression it uses and return it. This just makes life easier,
+    no real logic is occuring here.
+    '''
+    lb = l.body[0].value if type(l) is ast.Module else l
+    if type(lb) is not ast.Lambda:
+        raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
+
+    return lb.body
+
+def replace_lambda_body(l, new_expr):
+    '''
+    Return a new lambda function that has new_expr as the body rather than the old one. Otherwise, everything is the same.
+
+    l: A ast.Lambda or ast.Module that points to a lambda.
+    new_expr: Expression that should replace this one.
+
+    Returns:
+
+    new_l: New lambda that looks just like the old one, other than the expression is new. If the old one was an ast.Module, so will this one be.
+    '''
+    lb = l.body[0].value if type(l) is ast.Module else l
+    if type(lb) is not ast.Lambda:
+        raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
+
+    new_l = ast.Lambda(lb.args, new_expr)
+    return wrap_lambda(new_l) if type(l) is ast.Module else l

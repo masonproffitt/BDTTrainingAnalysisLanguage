@@ -43,7 +43,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         if type(parent_select) is not Select:
             return node
 
-        # Select(x: f(x)).Select(y: g(y)) needs to be turned into g(f(x)).
+        # Select(x: f(x)).Select(y: g(y)) needs to be turned into Select(x: g(f(x))).
         func_g = node.selection
         func_f = parent_select.selection
 
@@ -52,6 +52,26 @@ class simplify_chained_calls(ast.NodeTransformer):
 
         # And return the parent select with the new selection function
         return parent_select
+
+    def visit_SelectMany(self, node):
+        'SelectMany call made, if this is chained to another select call, then we can combine functions'
+
+        # If we are a chained select, grab that select.
+        parent_select = self.visit(node.source)
+        if type(parent_select) is not Select:
+            return node
+
+        # Select(x: f(x)).SelectMany(y: g(y)) needs to be turned into SelectMany(x: g(f(x))).
+        func_g = node.selection
+        func_f = parent_select.selection
+
+        # Replace our SelectMany selection with this update, and then
+        # use the select's source for our own.
+        node.selection = self.generic_visit(convolute(func_g, func_f))
+        node.source = parent_select.source
+
+        # And return the parent select with the new selection function
+        return node
     
     def visit_Call(self, call_node):
         '''We are looking for cases where an argument is another function or expression.

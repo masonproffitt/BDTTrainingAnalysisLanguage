@@ -37,8 +37,8 @@ events = f.AsATLASEvents()
 # -->
 training_df = events \
     .Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
-    .SelectMany('lambda e1: e1[1].Select(lambda j1: (e1[0].runNumber(), j1.pt()))') \
-    .AsPandasDF(columns=['RunNumber', 'JetPt']).value()
+    .SelectMany('lambda e1: e1[1].Select(lambda j1: (e1[0].runNumber(), e1[0].eventNumber(), j1.pt()))') \
+    .AsPandasDF(columns=['RunNumber', 'EventNumber', 'JetPt']).value()
 
 
 # Following works, but is commented out for now till we can integrate it above. Just

@@ -51,6 +51,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         parent_select = self.visit(node.source)
         # If we are a chained select, grab that select.
         if type(parent_select) is not Select:
+            node.selection = self.visit(node.selection)
             return node
 
         # Select(x: f(x)).Select(y: g(y)) needs to be turned into Select(x: g(f(x))).
@@ -77,6 +78,8 @@ class simplify_chained_calls(ast.NodeTransformer):
             # use the selects source for our own.
             node.selection = self.generic_visit(convolute(func_g, func_f))
             node.source = parent_select.source
+        else:
+            node.selection = self.visit(node.selection)
 
         # If the SM's selection function ends in a select.
         # SM(x: h(x).S(y: f(y))) ==> SM(x: h(x)).S(y: f(y))

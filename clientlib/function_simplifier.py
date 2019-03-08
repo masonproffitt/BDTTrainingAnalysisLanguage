@@ -3,6 +3,14 @@ import ast
 from clientlib.query_ast import Select
 from clientlib.ast_util import lambda_body, replace_lambda_body
 
+argument_var_counter = 0
+def arg_name():
+    'Return a unique name that can be used as an argument'
+    global argument_var_counter
+    n = 'arg_{0}'.format(argument_var_counter)
+    argument_var_counter += 1
+    return n
+
 def convolute(ast_g, ast_f):
     'Return an AST that represents g(f(args))'
 
@@ -16,10 +24,11 @@ def convolute(ast_g, ast_f):
     l_g = ast_g.body[0].value
     l_f = ast_f.body[0].value
 
-    f_arg = ast.Name('x', ast.Load())
+    x = arg_name()
+    f_arg = ast.Name(x, ast.Load())
     call_g = ast.Call(l_g, [ast.Call(l_f, [f_arg], [])], [])
 
-    args = ast.arguments(args=[ast.arg(arg='x')])
+    args = ast.arguments(args=[ast.arg(arg=x)])
     call_g_lambda = ast.Lambda(args=args, body=call_g)
 
     # Build a new call to nest the functions

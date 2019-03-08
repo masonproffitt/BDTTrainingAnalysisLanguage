@@ -61,3 +61,18 @@ def pretty_print (ast):
     pretty_print_visitor(stdout).visit(ast)
     stdout.write("\n")
 
+def wrap_lambda(l):
+    '''
+    Given an AST lambda node, correctly wrap it in a module the way the python parser does.
+
+    l: Must be an ast.Lambda node.
+
+    Returns:
+    
+    m: a Module AST node with an Expr statement for the body, which holds the lambda.
+    '''
+
+    if type(l) is not ast.Lambda:
+        raise BaseException('Attempt to wrap type {0} as a Lambda function, but it is not one!'.format(type(l)))
+
+    return ast.Module(body=[ast.Expr(l)])

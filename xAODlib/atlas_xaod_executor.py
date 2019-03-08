@@ -188,8 +188,7 @@ class query_ast_visitor(ast.NodeVisitor):
         'Transform the iterable from one form to another'
 
         # Simulate this as a "call"
-        c = ast.Call(func=select_ast.selection.body[0].value, args=[
-                     select_ast.source])
+        c = ast.Call(func=select_ast.selection.body[0].value, args=[select_ast.source])
         self.visit(c)
 
         rep = self._result

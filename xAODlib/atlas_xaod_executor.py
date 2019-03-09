@@ -7,6 +7,8 @@ import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
 from cpplib.cpp_representation import cpp_variable, cpp_collection
+from clientlib.tuple_simplifier import remove_tuple_subscripts
+from clientlib.function_simplifier import simplify_chained_calls
 
 import pandas as pd
 import uproot
@@ -186,8 +188,7 @@ class query_ast_visitor(ast.NodeVisitor):
         'Transform the iterable from one form to another'
 
         # Simulate this as a "call"
-        c = ast.Call(func=select_ast.selection.body[0].value, args=[
-                     select_ast.source])
+        c = ast.Call(func=select_ast.selection.body[0].value, args=[select_ast.source])
         self.visit(c)
 
         rep = self._result
@@ -250,6 +251,13 @@ class atlas_xaod_executor:
         Run through all the transformations that we have on tap to be run on the client side.
         Return a (possibly) modified ast.
         '''
+
+        # Do tuple resolutions. This might eliminate a whole bunch fo code!
+        #TODO: Remove this debugging line
+        from clientlib.ast_util import pretty_print
+
+        ast = simplify_chained_calls().visit(ast)
+        ast = remove_tuple_subscripts().visit(ast)
 
         # Any C++ custom code needs to be threaded into the ast
         ast = cpp_ast.cpp_ast_finder().visit(ast)

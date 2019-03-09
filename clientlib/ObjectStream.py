@@ -2,6 +2,7 @@
 import clientlib.query_ast as query_ast
 import clientlib.query_TTree as query_TTree
 import clientlib.pandas_df_ast as pandas_df_ast
+from clientlib.find_LINQ_operators import parse_ast
 import ast
 
 
@@ -21,7 +22,7 @@ class ObjectStream:
 
         func - a string that can be compiled to a python AST.
         """
-        return ObjectStream(query_ast.SelectMany(self._ast, ast.parse(func)))
+        return ObjectStream(query_ast.SelectMany(self._ast, parse_ast(func)))
 
     def Select(self, f):
         r"""
@@ -29,7 +30,7 @@ class ObjectStream:
 
         f - selection function
         """
-        return ObjectStream(query_ast.Select(self._ast, ast.parse(f)))
+        return ObjectStream(query_ast.Select(self._ast, parse_ast(f)))
 
     def AsPandasDF(self, columns=[]):
         r"""

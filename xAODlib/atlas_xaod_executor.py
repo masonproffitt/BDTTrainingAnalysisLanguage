@@ -9,6 +9,7 @@ import cpplib.cpp_ast as cpp_ast
 from cpplib.cpp_representation import cpp_variable, cpp_collection, name_from_rep, cpp_expression
 from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
+from clientlib.aggregate_shortcuts import aggregate_node_transformer
 
 import pandas as pd
 import uproot
@@ -316,6 +317,7 @@ class atlas_xaod_executor:
         #TODO: Remove this debugging line
         from clientlib.ast_util import pretty_print
 
+        ast = aggregate_node_transformer().visit(ast)
         ast = simplify_chained_calls().visit(ast)
         ast = remove_tuple_subscripts().visit(ast)
 

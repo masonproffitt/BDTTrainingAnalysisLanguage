@@ -30,7 +30,7 @@ class generated_code:
         return self._include_files
 
     def pop_scope(self):
-        self._scope_stack[:-1]
+        self._scope_stack = self._scope_stack[:-1]
 
     def current_scope(self):
         'Return a token that can be later used to set the scoping'

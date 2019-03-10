@@ -18,4 +18,11 @@ class aggregate_node_transformer(ast.NodeTransformer):
 
                 new_call = ast.Call(ast.Attribute(attr="Aggregate", value=node.func.value),args=[agg_start, agg_lambda])
                 return new_call
+            elif node.func.attr == "Max":
+                # The lambda will return the accumulator if is larger, otherwise the other guy. Parse b.c. we are lazy.
+                ast_lambda_acc = ast.parse("lambda acc,v: acc if acc > v else v")
+                agg_lambda_start = ast.Parse("lambda v: v").body[0].value
+
+                # Use a different flavor of aggregate
+                new_call = ast.Call(ast.Attribute(attr="Aggregate", value=node.func.value),args=[agg_lambda_start, ast_lambda_acc])
         return node

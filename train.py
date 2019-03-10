@@ -43,7 +43,7 @@ events = f.AsATLASEvents()
 # -->
 training_df = events \
     .Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
-    .Select('lambda e1: (e1[0].runNumber(), e1[0].eventNumber(), e1[1].Count())') \
+    .Select('lambda e1: (e1[0].runNumber(), e1[0].eventNumber(), e1[1].Select(lambda j: j.pt()).Aggregate(lambda v: v, lambda acc,v: acc+v))') \
     .AsPandasDF(columns=['RunNumber', 'EventNumber', 'NJets']).value()
 
 # Following works, but is commented out for now till we can integrate it above. Just

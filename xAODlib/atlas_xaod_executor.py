@@ -104,6 +104,20 @@ class query_ast_visitor(ast.NodeVisitor):
         for l_arg in call_node.func.args.args:
             del self._var_dict[l_arg.arg]
 
+    def assure_in_loop(self, collection):
+        r'''
+        Make sure that we are currently in a loop. For example, if we are
+        looking at e.Jets.Aggregate then e.Jets hasn't started a loop. OTOH,
+        looking at e.Jets.Select(j => j.pt).Aggregate, then we are already in
+        a loop.
+
+        collection: representation of a C++ collection or transformed iterable.
+        '''
+        if collection.is_iterable:
+            return collection
+        return collection.loop_over_collection(self._gc)
+
+
     def visit_Call_Aggregate(self, node):
         r'''Implement the aggregate algorithm in C++
         
@@ -113,14 +127,25 @@ class query_ast_visitor(ast.NodeVisitor):
         Limitations: only floats for now!
         '''
         # Pull out the two arguments
-        initial_value = node.args[0]
+        init = node.args[0]
         agg_lambda = node.args[1]
+
+        # There are two flavors of Aggregate, depending if init is a value or a lambda.
+        use_first = type(init) is ast.Lambda
 
         # Declare the thing that will be a result, and make sure everything above knows about it.
         result = cpp_variable(unique_name("aggResult"), cpp_type="float")
         self._gc.declare_variable(result)
-        self._gc.add_statement(statement.set_var(result, self.get_rep(initial_value)))
         node.rep = result
+
+        # We have to initalize the variable to some value, and it depends on how the user
+        # is trying to initalie things - first iteration or with a value.
+        if use_first:
+            is_first_iter = cpp_variable(unique_name("is_first"), cpp_type="bool")
+            self._gc.declare_variable(is_first_iter)
+            self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("true")))
+        else:
+            self._gc.add_statement(statement.set_var(result, self.get_rep(init)))
 
         # Store the scope so we cna pop back to it.
         scope = self._gc.current_scope()
@@ -130,8 +155,20 @@ class query_ast_visitor(ast.NodeVisitor):
         collection = self.get_rep(node.func.value)
         collection = self._result
 
-        # Iterate over it now.
-        rep_iterator = collection.loop_over_collection(self._gc)
+        # Iterate over it now. Make sure we are looping over this thing.
+        rep_iterator = self.assure_in_loop(collection)
+
+        # If we have to use the first lambda to set the first value, then we need that code up front.
+        if use_first:
+            if_first = statement.iftest(cpp_expression(is_first_iter.as_cpp()))
+            self._gc.add_statement(if_first)
+            self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("false")))
+            first_scope = self._gc.current_scope()
+            call = ast.Call(init, [name_from_rep(rep_iterator)])
+            self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
+            self._gc.set_scope(first_scope)
+            self._gc.pop_scope()
+            self._gc.add_statement(statement.elsephrase())
 
         # Perform the agregation function. We need to call it with the value and the accumulator.
         call = ast.Call(agg_lambda, [name_from_rep(result), name_from_rep(rep_iterator)])
@@ -248,11 +285,20 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_Select(self, select_ast):
         'Transform the iterable from one form to another'
 
+        s_rep = self.get_rep(select_ast.source)
+        selection = select_ast.selection.body[0].value
+
+        # Make sure we are in a loop
+        loop_var = self.assure_in_loop(s_rep)
+        s_ast = select_ast.source if loop_var is s_rep else name_from_rep(loop_var)
+
         # Simulate this as a "call"
-        c = ast.Call(func=select_ast.selection.body[0].value, args=[select_ast.source])
+        c = ast.Call(func=selection, args=[s_ast])
         self.visit(c)
 
         rep = self._result
+        if type(rep) is not tuple:
+            rep.is_iterable = True
         select_ast.rep = rep
 
     def visit_SelectMany(self, node):

@@ -40,6 +40,25 @@ class loop(block):
             self._loop_variable, self._collection_name))
         block.emit(self, e)
 
+class iftest(block):
+    'An if statement'
+    def __init__ (self, if_expr):
+        block.__init__(self)
+        self._expr = if_expr
+
+    def emit(self, e):
+        e.add_line('if ({0})'.format(self._expr.as_cpp()))
+        block.emit(self, e)
+
+class elsephrase(block):
+    'An else statement. Must come after you pop and if statement off'
+    def __init__(self):
+        block.__init__(self)
+
+    def emit(self, e):
+        'Emit an else statement'
+        e.add_line('else')
+        block.emit(self, e)
 
 class book_ttree:
     'Book a TTree for writing out. Meant to be in the Book method'

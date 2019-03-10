@@ -3,11 +3,12 @@
 # implement one.
 #
 import xAODlib.statement as statement
+from cpplib.cpp_vars import unique_name
 import ast
 
 def name_from_rep(rep):
     'Create an ast.Name from a variable representation'
-    a = ast.Name(rep.name())
+    a = ast.Name(rep.as_cpp())
     a.rep = rep
     return a
 
@@ -18,6 +19,9 @@ class cpp_rep_base:
     This is an abstract class for the most part. Do not override things that aren't needed - that way the system will
     know when the user tries to do something that they shouldn't have.
     '''
+    def __init__(self):
+        # Set to true when we represent an item in an interable type. 
+        self.is_iterable = False
 
     def as_cpp(self):
         'Return the C++ code to represent whatever we are holding'
@@ -29,6 +33,7 @@ class cpp_variable(cpp_rep_base):
     '''
 
     def __init__(self, name, is_pointer=False, cpp_type = None):
+        cpp_rep_base.__init__(self)
         self._cpp_name = name
         self._is_pointer = is_pointer
         self._cpp_type = cpp_type
@@ -51,6 +56,7 @@ class cpp_expression(cpp_rep_base):
     statements.
     '''
     def __init__(self, expr, cpp_type=None):
+        cpp_rep_base.__init__(self)
         self._expr = expr
         self._cpp_type = cpp_type
 
@@ -83,7 +89,8 @@ class cpp_collection(cpp_variable):
 
         # Create the var we are going to iterate over, and figure out how to reference
         # What we are doing.
-        v = cpp_variable("jet", is_pointer=True)
+        v = cpp_variable(unique_name("i_obj"), is_pointer=True)
+        v.is_iterable = True
         c_ref = ("*" + self.name()) if self.is_pointer() else self.name()
 
         # Finally, the actual loop statement.

@@ -1,12 +1,12 @@
 # Executor and code for the ATLAS xAOD input files
 from xAODlib.generated_code import generated_code
 import xAODlib.statement as statement
-from xAODlib.expression_ast import assure_lambda
+from clientlib.ast_util import assure_lambda, lambda_body
 #from xAODlib.AtlasEventStream import AtlasXAODFileStream
 import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
-from cpplib.cpp_representation import cpp_variable, cpp_collection
+from cpplib.cpp_representation import cpp_variable, cpp_collection, name_from_rep, cpp_expression
 from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
 
@@ -18,7 +18,6 @@ from shutil import copyfile
 import os
 from urllib.parse import urlparse
 import jinja2
-
 
 class query_ast_visitor(ast.NodeVisitor):
     r"""
@@ -104,8 +103,52 @@ class query_ast_visitor(ast.NodeVisitor):
         for l_arg in call_node.func.args.args:
             del self._var_dict[l_arg.arg]
 
+    def visit_Call_Aggregate(self, node):
+        r'''Implement the aggregate algorithm in C++
+        
+        Our source we loop over, and we count out everything. The final result is whatever it is
+        we are counting.
+
+        Limitations: only floats for now!
+        '''
+        # Pull out the two arguments
+        initial_value = node.args[0]
+        agg_lambda = node.args[1]
+
+        # Declare the thing that will be a result, and make sure everything above knows about it.
+        result = cpp_variable(unique_name("aggResult"), cpp_type="float")
+        self._gc.declare_variable(result)
+        self._gc.add_statement(statement.set_var(result, self.get_rep(initial_value)))
+        node.rep = result
+
+        # Store the scope so we cna pop back to it.
+        scope = self._gc.current_scope()
+
+        # Next, get the thing we are going to loop over, and generate the loop.
+        # Pull the result out of the main result guy
+        collection = self.get_rep(node.func.value)
+        collection = self._result
+
+        # Iterate over it now.
+        rep_iterator = collection.loop_over_collection(self._gc)
+
+        # Perform the agregation function. We need to call it with the value and the accumulator.
+        call = ast.Call(agg_lambda, [name_from_rep(result), name_from_rep(rep_iterator)])
+        self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
+
+        # Finally, pop the whole thing off.
+        self._gc.set_scope(scope)
+
+        # Cache the results in our result incase we are skipping nodes in the AST.
+        self._result = result
+
     def visit_Call_Member(self, call_node):
         'Method call on an object'
+
+        # If this is a special type of Function call that we need to work with, split out here
+        # before any processing is done.
+        if (call_node.func.attr == "Aggregate"):
+            return self.visit_Call_Aggregate(call_node)
 
         # Visit everything down a level.
         self.generic_visit(call_node)
@@ -118,14 +161,13 @@ class query_ast_visitor(ast.NodeVisitor):
         # We support member calls that directly translate only. Here, for example, this is only for
         # obj.pt() or similar. The translation is direct.
         c_stub = calling_against.name() + ("->" if calling_against.is_pointer() else "->")
-        self._result = cpp_variable(c_stub + function_name + "()")
+        self._result = cpp_expression(c_stub + function_name + "()")
 
     def visit_Name(self, name_node):
         'Visiting a name - which should represent something'
         id = self.resolve_id(name_node.id)
         if isinstance(id, ast.AST):
             name_node.rep = self.get_rep(id)
-
 
     def visit_Call(self, call_node):
         r'''
@@ -151,6 +193,24 @@ class query_ast_visitor(ast.NodeVisitor):
         tuple_node.rep = tuple(self.get_rep(e) for e in tuple_node.elts)
         self._result = tuple_node.rep
 
+    def visit_BinOp(self, node):
+        'An in-line add'
+        left = self.get_rep(node.left)
+        right = self.get_rep(node.right)
+
+        if type(node.op) is ast.Add:
+            r = cpp_expression("({0}+{1})".format(left.as_cpp(), right.as_cpp()))
+        else:
+            raise BaseException("Binary operator {0} is not implemented.".format(type(node.op)))
+
+        # Cache the result to push it back further up.
+        node.rep = r
+        self._result = r
+
+    def visit_Num(self, node):
+        node.rep = cpp_expression(node.n)
+        self._result = node.rep
+
     def visit_CreatePandasDF(self, node):
         'Generate the code to convert to a pandas DF'
         self.generic_visit(node)
@@ -159,9 +219,9 @@ class query_ast_visitor(ast.NodeVisitor):
         '''This AST means we are taking an iterable and converting it to a file.
         '''
         # For each incoming variable, we need to declare something we are going to write.
-        var_names = [(name, unique_name(name, is_class_var=True)) for name in node.column_names]
+        var_names = [(name, cpp_variable(unique_name(name, is_class_var=True), cpp_type="float")) for name in node.column_names]
         for cv in var_names:
-            self._gc.declare_class_variable('float', cv[1])
+            self._gc.declare_class_variable(cv[1])
 
         # Next, emit the booking code
         self._gc.add_book_statement(statement.book_ttree("analysis", var_names))
@@ -177,7 +237,7 @@ class query_ast_visitor(ast.NodeVisitor):
             raise BaseException("Number of columns ({0}) is not the same as labels ({1}) in TTree creation".format(len(v_rep), len(var_names)))
 
         for e in zip(v_rep, var_names):
-            self._gc.add_statement(statement.set_var(e[1][1], e[0].name()))
+            self._gc.add_statement(statement.set_var(e[1][1], e[0]))
 
         self._gc.add_statement(statement.ttree_fill("analysis"))
 

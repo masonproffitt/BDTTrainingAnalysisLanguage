@@ -3,6 +3,7 @@
 # This is one mechanism to allow for a leaky abstraction.
 import ast
 from cpplib.cpp_vars import unique_name
+from cpplib.cpp_representation import cpp_expression
 import xAODlib.statement as statements
 
 # The list of methods and the re-write functions for them. Each rewrite function
@@ -95,7 +96,7 @@ def process_ast_node(visitor, gc, current_loop_value, call_node):
     # We write everything into a new scope to prevent conflicts. So we have to declare the result ahead of time.
     cpp_ast_node = call_node.func
     result_rep = cpp_ast_node.result_rep
-    gc.declare_variable(result_rep.cpp_type(), result_rep.name())
+    gc.declare_variable(result_rep)
 
     # Include files
     for i in cpp_ast_node.include_files:
@@ -121,7 +122,7 @@ def process_ast_node(visitor, gc, current_loop_value, call_node):
         blk.add_statement(statements.arbitrary_statement(l))
 
     # Set the result and close the scope
-    blk.add_statement(statements.set_var(result_rep.name(), cpp_ast_node.result))
+    blk.add_statement(statements.set_var(result_rep, cpp_expression(cpp_ast_node.result)))
     gc.pop_scope()
 
     return result_rep

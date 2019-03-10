@@ -111,3 +111,23 @@ def replace_lambda_body(l, new_expr):
 
     new_l = ast.Lambda(lb.args, new_expr)
     return wrap_lambda(new_l) if type(l) is ast.Module else l
+
+def assure_lambda(east, nargs=None):
+    r'''
+    Make sure the Python expression ast is a lambda call, and that it has the right number of args.
+
+    east - python expression ast (module ast)
+    nargs - number of args it is required to have. If None, no check is done.
+    '''
+    if not test_lambda(east, nargs):
+        raise BaseException(
+            'Expression AST is not a lambda function with the right number of arguments')
+
+    return east
+
+
+def test_lambda(east, nargs):
+    r''' Test arguments
+    TODO: Either fill this in or eliminate it.
+    '''
+    return True

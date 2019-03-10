@@ -3,7 +3,13 @@
 # implement one.
 #
 import xAODlib.statement as statement
+import ast
 
+def name_from_rep(rep):
+    'Create an ast.Name from a variable representation'
+    a = ast.Name(rep.name())
+    a.rep = rep
+    return a
 
 class cpp_rep_base:
     r'''
@@ -13,23 +19,9 @@ class cpp_rep_base:
     know when the user tries to do something that they shouldn't have.
     '''
 
-    def access_collection(self, gen_code, access_ast):
-        '''
-        This item has a collection. Access it, using the ast above, and return
-        a rep for the collection.
-        Assumes: this rep has collections to access. Something representing a float, for example, would not.
-
-        gen_code - The generated_code object that we can use to emit C++ code.
-        access_ast - a lambda function that when applied to this representation should yield the collection.
-                     An error should be thrown if that isn't the case.
-
-        returns:
-
-        collection_rep - A rep that allows code to directly access (loop over, etc) the collection.
-        '''
-        raise BaseException(
-            "access_collection is not implemented for this type:" + type(self).__name__)
-
+    def as_cpp(self):
+        'Return the C++ code to represent whatever we are holding'
+        raise BaseException("Subclasses need to implement in for as_cpp")
 
 class cpp_variable(cpp_rep_base):
     r'''
@@ -44,12 +36,26 @@ class cpp_variable(cpp_rep_base):
     def name(self):
         return self._cpp_name
 
+    def as_cpp(self):
+        return self._cpp_name
+
     def is_pointer(self):
         return self._is_pointer
 
     def cpp_type(self):
         return self._cpp_type
 
+class cpp_expression(cpp_rep_base):
+    r'''
+    Represents a small bit of C++ code that is an expression. For example "a+b". It does not hold full
+    statements.
+    '''
+    def __init__(self, expr, cpp_type=None):
+        self._expr = expr
+        self._cpp_type = cpp_type
+
+    def as_cpp(self):
+        return self._expr
 
 class cpp_collection(cpp_variable):
     r'''

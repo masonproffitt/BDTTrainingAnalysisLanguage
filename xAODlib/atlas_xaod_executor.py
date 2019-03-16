@@ -135,28 +135,48 @@ class query_ast_visitor(ast.NodeVisitor):
         Our source we loop over, and we count out everything. The final result is whatever it is
         we are counting.
 
+        Possible arguments to the call:
+
+        - (acc lambda): the accumulator is set to the first element, and the lambda is called to
+                        update it after that.
+        - (const, acc lambda): the accumulator is set to the value, and then the lambda is called to
+                        update it on every single element.
+        - (start lambda, acc lambda): the accumulator is set to the start lambda call on the first
+                        element in the sequence, and then acc is called to update it after that.
+
         Limitations: only floats for now!
         '''
-        # Pull out the two arguments
-        init = node.args[0]
-        agg_lambda = node.args[1]
-
-        # There are two flavors of Aggregate, depending if init is a value or a lambda.
-        use_first = type(init) is ast.Lambda
+        # Parse the argument list
+        use_first_element_seperately = False
+        agg_lambda = None
+        init_lambda = None
+        init_val = None
+        if len(node.args) == 1:
+            agg_lambda = node.args[0]
+            use_first_element_seperately = True
+        elif len(node.args) == 2:
+            agg_lambda = node.args[1]
+            if type(node.args[0]) is ast.Lambda:
+                use_first_element_seperately = True
+                init_lambda = node.args[0]
+            else:
+                init_val = node.args[0]
+                use_first_element_seperately = False
+        else:
+            raise BaseException('Aggregate can have only one or two arguments')
 
         # Declare the thing that will be a result, and make sure everything above knows about it.
         result = cpp_variable(unique_name("aggResult"), cpp_type="float")
         self._gc.declare_variable(result)
-        node.rep = result
 
         # We have to initalize the variable to some value, and it depends on how the user
         # is trying to initalie things - first iteration or with a value.
-        if use_first:
+        if use_first_element_seperately:
             is_first_iter = cpp_variable(unique_name("is_first"), cpp_type="bool")
             self._gc.declare_variable(is_first_iter)
             self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("true")))
         else:
-            self._gc.add_statement(statement.set_var(result, self.get_rep(init)))
+            self._gc.add_statement(statement.set_var(result, self.get_rep(init_val)))
 
         # Store the scope so we cna pop back to it.
         scope = self._gc.current_scope()
@@ -170,13 +190,18 @@ class query_ast_visitor(ast.NodeVisitor):
         rep_iterator = self.assure_in_loop(collection)
 
         # If we have to use the first lambda to set the first value, then we need that code up front.
-        if use_first:
+        if use_first_element_seperately:
             if_first = statement.iftest(cpp_expression(is_first_iter.as_cpp()))
             self._gc.add_statement(if_first)
             self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("false")))
             first_scope = self._gc.current_scope()
-            call = ast.Call(init, [name_from_rep(rep_iterator)])
-            self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
+
+            if init_lambda is not None:
+                call = ast.Call(init_lambda, [name_from_rep(rep_iterator)])
+                self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
+            else:
+                self._gc.add_statement(statement.set_var(result, rep_iterator))
+
             self._gc.set_scope(first_scope)
             self._gc.pop_scope()
             self._gc.add_statement(statement.elsephrase())
@@ -189,6 +214,7 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.set_scope(scope)
 
         # Cache the results in our result incase we are skipping nodes in the AST.
+        node.rep = result
         self._result = result
 
     def visit_Call_Member(self, call_node):

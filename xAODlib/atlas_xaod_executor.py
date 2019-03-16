@@ -256,7 +256,7 @@ class query_ast_visitor(ast.NodeVisitor):
         elif type(call_node.func) is cpp_ast.CPPCodeValue:
             self._result = cpp_ast.process_ast_node(self, self._gc, self._result, call_node)
         else:
-            raise BaseException("Do not know how to call at " + type(call_node.func).__name__)
+            raise BaseException("Do not know how to call '{0}'".format(call_node.func))
         call_node.rep = self._result
 
     def visit_Tuple(self, tuple_node):

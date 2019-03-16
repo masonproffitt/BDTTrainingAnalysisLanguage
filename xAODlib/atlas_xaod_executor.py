@@ -20,6 +20,17 @@ import os
 from urllib.parse import urlparse
 import jinja2
 
+# Convert between Python comparisons and C++.
+# TODO: Fill out all possible ones
+compare_operations = {
+    ast.Lt: '<',
+    ast.LtE: '<=',
+    ast.Gt: '>',
+    ast.GtE: '>=',
+    ast.Eq: '==',
+    ast.NotEq: '!=',
+}
+
 class query_ast_visitor(ast.NodeVisitor):
     r"""
     Drive the conversion to C++ from the top level query
@@ -242,6 +253,49 @@ class query_ast_visitor(ast.NodeVisitor):
             raise BaseException("Binary operator {0} is not implemented.".format(type(node.op)))
 
         # Cache the result to push it back further up.
+        node.rep = r
+        self._result = r
+
+    def visit_IfExp(self, node):
+        r'''
+        We'd like to be able to use the "?" operator in C++, but the
+        problem is lazy evaluation. It could be when we look at one or the
+        other item, a bunch of prep work has to be done - and that will
+        show up in seperate statements. So we have to use if/then/else with
+        a result value.
+        '''
+        
+        # The result we'll store everything in.
+        result = cpp_variable(unique_name("ifelse_result"), cpp_type="float")
+        self._gc.declare_variable(result)
+
+        # We always have to evaluate the test.
+        current_scope = self._gc.current_scope()
+        test_expr = self.get_rep(node.test)
+        self._gc.add_statement(statement.iftest(test_expr))
+        if_scope = self._gc.current_scope()
+
+        # Next, we do the true and false if statement.
+        self._gc.add_statement(statement.set_var(result, self.get_rep(node.body)))
+        self._gc.set_scope(if_scope)
+        self._gc.pop_scope()
+        self._gc.add_statement(statement.elsephrase())
+        self._gc.add_statement(statement.set_var(result, self.get_rep(node.orelse)))
+        self._gc.set_scope(current_scope)
+
+        # Done, the result is the rep of this node!
+        node.rep = result
+        self._result = result
+
+    def visit_Compare(self, node):
+        'A compare between two things. Python supports more than that, but not implemented yet.'
+        if len(node.ops) != 1:
+            raise BaseException("Do not support 1 < a < 10 comparisons yet!")
+        
+        left = self.get_rep(node.left)
+        right = self.get_rep(node.comparators[0])
+
+        r = cpp_expression('({0}{1}{2})'.format(left.as_cpp(), compare_operations[type(node.ops[0])], right.as_cpp()))
         node.rep = r
         self._result = r
 

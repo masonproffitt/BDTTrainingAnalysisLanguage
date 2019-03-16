@@ -275,6 +275,8 @@ class query_ast_visitor(ast.NodeVisitor):
 
         if type(node.op) is ast.Add:
             r = cpp_expression("({0}+{1})".format(left.as_cpp(), right.as_cpp()))
+        elif type(node.op) is ast.Div:
+            r = cpp_expression("({0}/{1})".format(left.as_cpp(), right.as_cpp()))
         else:
             raise BaseException("Binary operator {0} is not implemented.".format(type(node.op)))
 

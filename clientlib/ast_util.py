@@ -83,16 +83,20 @@ def wrap_lambda(l):
 
     return ast.Module(body=[ast.Expr(l)])
 
+def unwrap_lambda(l):
+    'Given an AST of a lambda node, return the lambda node. If it is burried in a module, then unwrap it'
+    lb = l.body[0].value if type(l) is ast.Module else l
+    if type(lb) is not ast.Lambda:
+        raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
+
+    return lb
+
 def lambda_body(l):
     '''
     Given an AST lambda node, get the expression it uses and return it. This just makes life easier,
     no real logic is occuring here.
     '''
-    lb = l.body[0].value if type(l) is ast.Module else l
-    if type(lb) is not ast.Lambda:
-        raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
-
-    return lb.body
+    return unwrap_lambda(l).body
 
 def replace_lambda_body(l, new_expr):
     '''

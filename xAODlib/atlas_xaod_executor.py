@@ -1,7 +1,7 @@
 # Executor and code for the ATLAS xAOD input files
 from xAODlib.generated_code import generated_code
 import xAODlib.statement as statement
-from clientlib.ast_util import assure_lambda, lambda_body
+from clientlib.ast_util import assure_lambda, lambda_body, unwrap_lambda
 #from xAODlib.AtlasEventStream import AtlasXAODFileStream
 import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
@@ -60,7 +60,7 @@ class query_ast_visitor(ast.NodeVisitor):
         return self._gc.class_declaration_code()
 
     def visit (self, node):
-        '''Visit a note. If the node already has a rep, then it has been visited and we
+        '''Visit a node. If the node already has a rep, then it has been visited and we
         do not need to visit it again.
 
         node - if the node has a rep, just return
@@ -373,7 +373,7 @@ class query_ast_visitor(ast.NodeVisitor):
         s_ast = select_ast.source if loop_var is s_rep else name_from_rep(loop_var)
 
         # Simulate this as a "call"
-        selection = lambda_body(select_ast.selection)
+        selection = unwrap_lambda(select_ast.selection)
         c = ast.Call(func=selection, args=[s_ast])
         rep = self.get_rep(c)
 
@@ -390,10 +390,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # call, and then visit it.
 
         c = ast.Call(func=node.selection.body[0].value, args=[node.source])
-        self.visit(c)
-
-        # The result is the collection we need to be looking at.
-        rep_collection = self._result
+        rep_collection = self.get_rep(c)
 
         # Get the collection, and then generate the loop over it.
         rep_iterator = rep_collection.loop_over_collection(self._gc)
@@ -401,9 +398,24 @@ class query_ast_visitor(ast.NodeVisitor):
         node.rep = rep_iterator
 
     def visit_Where(self, node):
-        r'''
-        Apply a filtering to the current loop.
-        '''
+        'Apply a filtering to the current loop.'
+
+        # Make sure we are in a loop
+        s_rep = self.get_rep(node.source)
+        loop_var = self.assure_in_loop(s_rep)
+        s_ast = node.source if loop_var is s_rep else name_from_rep(loop_var)
+
+        # Simulate the filtering call - we want the resulting value to test.
+        filter = unwrap_lambda(node.filter)
+        c = ast.Call(func=filter, args=[s_ast])
+        rep = self.get_rep(c)
+
+        # Create an if statement
+        self._gc.add_statement(statement.iftest(rep))
+
+        # Finally, our result is basically what we had for the source.
+        node.rep = s_rep
+        self._result = s_rep
 
 
 

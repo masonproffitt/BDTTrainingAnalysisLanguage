@@ -61,6 +61,11 @@ events = f.AsATLASEvents()
 #     .Select('lambda j: j.pt()/1000.0') \
 #     .Where('lambda j: 60.0 < 40.0') \
 #     .AsPandasDF(columns=['JetPt']).value()
+# training_df = events \
+#     .SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets")') \
+#     .Select('lambda j: j.pt()/1000.0') \
+#     .Where('lambda pt: pt > 40.0') \
+#     .AsPandasDF(columns=['JetPt']).value()
 # -->
 # training_df = events \
 #     .Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"))') \
@@ -74,8 +79,8 @@ events = f.AsATLASEvents()
 #     .AsPandasDF(columns=['RunNumber', 'EventNumber', 'JetPt']).value()
 training_df = events \
     .SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets")') \
-    .Select('lambda j: j.pt()/1000.0') \
-    .Where('lambda pt: pt > 40.0') \
+    .Select('lambda j: (j.pt()/1000.0,)') \
+    .Where('lambda pt: pt[0] > 40.0') \
     .AsPandasDF(columns=['JetPt']).value()
 
 # Following works, but is commented out for now till we can integrate it above. Just

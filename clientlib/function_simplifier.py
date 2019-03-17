@@ -1,7 +1,7 @@
 # Various node visitors to clean up nested function calls of various types.
 import ast
-from clientlib.query_ast import Select
-from clientlib.ast_util import lambda_body, replace_lambda_body
+from clientlib.query_ast import Select, Where
+from clientlib.ast_util import lambda_body, replace_lambda_body, wrap_lambda
 
 argument_var_counter = 0
 def arg_name():
@@ -32,9 +32,7 @@ def convolute(ast_g, ast_f):
     call_g_lambda = ast.Lambda(args=args, body=call_g)
 
     # Build a new call to nest the functions
-    ast_f.body[0].value = call_g_lambda
-
-    return ast_f
+    return wrap_lambda(call_g_lambda)
 
 class simplify_chained_calls(ast.NodeTransformer):
     '''
@@ -89,6 +87,39 @@ class simplify_chained_calls(ast.NodeTransformer):
             node = Select(node, select_body.selection)
 
         # And return the parent select with the new selection function
+        return node
+
+    def visit_Where_after_select(self, parent_select, filter):
+        '''Translate `.Select.Where` to `.Where.Select` '''
+
+        # Unwind all the bits we are going to have to go after.
+        s_source = parent_select.source
+        s_func = parent_select.selection
+
+        # Create the where ast
+        w = Where(s_source, self.visit(convolute(filter, s_func)))
+
+        # Nest it inside a new select
+        s = Select(w, s_func)
+
+        # Recursively visit this mess to see if the Where needs to move further up.
+        return self.visit(s)
+
+    def visit_Where(self, node):
+        r'''
+        We implement two translations here:
+        
+        1. `seq.Select(x: f(x)).Where(y: g(y))` => `seq.Where(x: g(f(x))).Select(x: f(x))` Of course
+           this has to be repeatedly applied moving the Where as far up as possible.
+        '''
+
+        # Look for pattern 1 or pattern 2.
+        parent_where = self.visit(node.source)
+        if type(parent_where) is Select:
+            return self.visit_Where_after_select(parent_where, node.filter)
+        
+        # Ok, nothing matched. Pass the parsing on down and return that.
+        node.filter = self.visit(node.filter)
         return node
     
     def visit_Call(self, call_node):

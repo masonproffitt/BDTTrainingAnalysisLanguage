@@ -147,21 +147,21 @@ class query_ast_visitor(ast.NodeVisitor):
         Limitations: only floats for now!
         '''
         # Parse the argument list
-        use_first_element_seperately = False
+        use_first_element_separately = False
         agg_lambda = None
         init_lambda = None
         init_val = None
         if len(node.args) == 1:
             agg_lambda = node.args[0]
-            use_first_element_seperately = True
+            use_first_element_separately = True
         elif len(node.args) == 2:
             agg_lambda = node.args[1]
             if type(node.args[0]) is ast.Lambda:
-                use_first_element_seperately = True
+                use_first_element_separately = True
                 init_lambda = node.args[0]
             else:
                 init_val = node.args[0]
-                use_first_element_seperately = False
+                use_first_element_desperately = False
         else:
             raise BaseException('Aggregate can have only one or two arguments')
 
@@ -169,9 +169,9 @@ class query_ast_visitor(ast.NodeVisitor):
         result = cpp_variable(unique_name("aggResult"), cpp_type="float")
         self._gc.declare_variable(result)
 
-        # We have to initalize the variable to some value, and it depends on how the user
-        # is trying to initalie things - first iteration or with a value.
-        if use_first_element_seperately:
+        # We have to initialized the variable to some value, and it depends on how the user
+        # is trying to initialize things - first iteration or with a value.
+        if use_first_element_desperately:
             is_first_iter = cpp_variable(unique_name("is_first"), cpp_type="bool")
             self._gc.declare_variable(is_first_iter)
             self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("true")))
@@ -190,7 +190,7 @@ class query_ast_visitor(ast.NodeVisitor):
         rep_iterator = self.assure_in_loop(collection)
 
         # If we have to use the first lambda to set the first value, then we need that code up front.
-        if use_first_element_seperately:
+        if use_first_element_separately:
             if_first = statement.iftest(cpp_expression(is_first_iter.as_cpp()))
             self._gc.add_statement(if_first)
             self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("false")))
@@ -206,7 +206,7 @@ class query_ast_visitor(ast.NodeVisitor):
             self._gc.pop_scope()
             self._gc.add_statement(statement.elsephrase())
 
-        # Perform the agregation function. We need to call it with the value and the accumulator.
+        # Perform the aggregation function. We need to call it with the value and the accumulator.
         call = ast.Call(agg_lambda, [name_from_rep(result), name_from_rep(rep_iterator)])
         self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
 
@@ -289,12 +289,12 @@ class query_ast_visitor(ast.NodeVisitor):
         We'd like to be able to use the "?" operator in C++, but the
         problem is lazy evaluation. It could be when we look at one or the
         other item, a bunch of prep work has to be done - and that will
-        show up in seperate statements. So we have to use if/then/else with
+        show up in separate statements. So we have to use if/then/else with
         a result value.
         '''
         
         # The result we'll store everything in.
-        result = cpp_variable(unique_name("ifelse_result"), cpp_type="float")
+        result = cpp_variable(unique_name("if_else_result"), cpp_type="float")
         self._gc.declare_variable(result)
 
         # We always have to evaluate the test.
@@ -367,18 +367,16 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_Select(self, select_ast):
         'Transform the iterable from one form to another'
 
-        s_rep = self.get_rep(select_ast.source)
-        selection = select_ast.selection.body[0].value
-
         # Make sure we are in a loop
+        s_rep = self.get_rep(select_ast.source)
         loop_var = self.assure_in_loop(s_rep)
         s_ast = select_ast.source if loop_var is s_rep else name_from_rep(loop_var)
 
         # Simulate this as a "call"
+        selection = lambda_body(select_ast.selection)
         c = ast.Call(func=selection, args=[s_ast])
-        self.visit(c)
+        rep = self.get_rep(c)
 
-        rep = self._result
         if type(rep) is not tuple:
             rep.is_iterable = True
         select_ast.rep = rep
@@ -401,6 +399,12 @@ class query_ast_visitor(ast.NodeVisitor):
         rep_iterator = rep_collection.loop_over_collection(self._gc)
 
         node.rep = rep_iterator
+
+    def visit_Where(self, node):
+        r'''
+        Apply a filtering to the current loop.
+        '''
+
 
 
 class cpp_source_emitter:

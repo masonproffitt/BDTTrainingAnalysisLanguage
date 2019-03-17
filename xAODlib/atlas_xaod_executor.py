@@ -112,8 +112,11 @@ class query_ast_visitor(ast.NodeVisitor):
         self.visit(call_node.func.body)
 
         # Done processing the lambda. Remove the arguments
-        for l_arg in call_node.func.args.args:
-            del self._var_dict[l_arg.arg]
+        # TODO: the below code should work, but it isn't for some reason.
+        #       Probably because when we move functions we aren't moving the argument names
+        #       correctly (the nesting). This is going to come back and bite us!
+        # for l_arg in call_node.func.args.args:
+        #     del self._var_dict[l_arg.arg]
 
     def assure_in_loop(self, collection):
         r'''

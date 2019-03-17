@@ -1,7 +1,7 @@
 # Various node visitors to clean up nested function calls of various types.
 import ast
-from clientlib.query_ast import Select, Where
-from clientlib.ast_util import lambda_body, replace_lambda_body, wrap_lambda
+from clientlib.query_ast import Select, Where, SelectMany
+from clientlib.ast_util import lambda_body, replace_lambda_body, wrap_lambda, unwrap_lambda
 
 argument_var_counter = 0
 def arg_name():
@@ -105,18 +105,47 @@ class simplify_chained_calls(ast.NodeTransformer):
         # Recursively visit this mess to see if the Where needs to move further up.
         return self.visit(s)
 
+    def visit_Where_after_selectmany(self, parent_selectmany, filter):
+        'Translate `Where(SelectMany(seq, x : f(x)), y: g(y))` to `SelectMany(seq, x: Where(f(x), y: g(y))`'
+
+        # Unwind all the bits we are going to have to go after.
+        s_source = parent_selectmany.source
+        s_func = parent_selectmany.selection
+
+        # The Where's source is the call that is in the SM. Build a Call statement.
+        # TODO: this is the second place in this file that this wrap and call and extract lambda
+        #       code appears. It should be a common routine!
+        s_lambda = unwrap_lambda(s_func)
+        x = arg_name()
+        f_arg = ast.Name(x, ast.Load())
+        call_s = ast.Call(s_lambda, [f_arg], [])
+        w = Where(call_s, filter)
+
+        # Now, the Where needs to be turned into a lambda.
+        args = ast.arguments(args=[ast.arg(arg=x)])
+        call_w_lambda = ast.Lambda(args=args, body=w)
+
+        # And the new SM
+        return self.visit(SelectMany(s_source, wrap_lambda(call_w_lambda)))
+
+
     def visit_Where(self, node):
         r'''
         We implement two translations here:
         
-        1. `seq.Select(x: f(x)).Where(y: g(y))` => `seq.Where(x: g(f(x))).Select(x: f(x))` Of course
-           this has to be repeatedly applied moving the Where as far up as possible.
+        1. `seq.Select(x: f(x)).Where(y: g(y))` => `seq.Where(x: g(f(x))).Select(x: f(x))`
+        1. `seq.SelectMany(x: f(x)).Where(y: g(y))` => 'seq.SelectMany(x: f(x).Where(y: f(y)))` 
+
+        In both cases things have to be recursively applied.
         '''
 
         # Look for pattern 1 or pattern 2.
         parent_where = self.visit(node.source)
         if type(parent_where) is Select:
             return self.visit_Where_after_select(parent_where, node.filter)
+
+        # if type(parent_where) is SelectMany:
+        #     return self.visit_Where_after_selectmany(parent_where, node.filter)
         
         # Ok, nothing matched. Pass the parsing on down and return that.
         node.filter = self.visit(node.filter)

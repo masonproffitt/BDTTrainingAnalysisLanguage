@@ -44,6 +44,10 @@ class replace_LINQ_operators(ast.NodeTransformer):
                 source = self.visit(node.func.value)
                 selection = self.visit(node.args[0])
                 return query_ast.SelectMany(source, wrap_lambda(selection))
+            elif func_name == "Where":
+                source = self.visit(node.func.value)
+                filter = self.visit(node.args[0])
+                return query_ast.Where(source, filter)
             else:
                 return self.generic_visit(node)
         return node

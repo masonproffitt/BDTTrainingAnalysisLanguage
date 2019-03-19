@@ -10,13 +10,13 @@ class pretty_print_visitor(ast.NodeVisitor):
     def print_fields (self, node):
         'Handle different types of fields'
         if isinstance(node, list):
-            self._s.write('  '*self._indent + '[\n')
+            self._s.write('    '*self._indent + '[\n')
             self._indent += 1
             for f in node:
                 self.print_fields(f)
                 self._s.write(',\n')
             self._indent -= 1
-            self._s.write('  '*self._indent + ']\n')
+            self._s.write('    '*self._indent + ']\n')
         elif isinstance(node, ast.AST):
             first = True
             for field, value in ast.iter_fields(node):
@@ -24,7 +24,7 @@ class pretty_print_visitor(ast.NodeVisitor):
                     self._s.write(',\n')
                 first = False
 
-                self._s.write('  '*self._indent + field + "=")
+                self._s.write('    '*self._indent + field + "=")
                 self._indent += 1
                 self.visit(value)
                 self._indent -= 1
@@ -50,7 +50,7 @@ class pretty_print_visitor(ast.NodeVisitor):
         if self.count_fields(node) > 0:
             self._s.write('\n')
             self.print_fields (node)
-            self._s.write('  '*self._indent)
+            self._s.write('    '*self._indent)
         self._s.write(')')
 
     def visit_Num(self, node):

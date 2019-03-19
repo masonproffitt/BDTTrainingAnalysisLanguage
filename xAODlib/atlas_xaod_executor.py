@@ -187,7 +187,6 @@ class query_ast_visitor(ast.NodeVisitor):
         # Next, get the thing we are going to loop over, and generate the loop.
         # Pull the result out of the main result guy
         collection = self.get_rep(node.func.value)
-        collection = self._result
 
         # Iterate over it now. Make sure we are looping over this thing.
         rep_iterator = self.assure_in_loop(collection)
@@ -417,8 +416,8 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.add_statement(statement.iftest(rep))
 
         # Finally, our result is basically what we had for the source.
-        node.rep = s_rep
-        self._result = s_rep
+        node.rep = loop_var
+        self._result = loop_var
 
 
 

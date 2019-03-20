@@ -1,5 +1,6 @@
 # Code to help specify and work with datasets on the client end.
 from xAODlib.AtlasEventStream import AtlasEventStream
+from numpylib.NumpyEventStream import NumpyEventStream
 
 # Bring in all the machinery to process xAOD files. This adds
 # extra stuff to the processing engine to special case things.
@@ -17,3 +18,11 @@ class EventDataSet:
         This should be an extension function, not on the EventDataSet which should be "neutral".
         """
         return AtlasEventStream(self)
+
+    def AsNumpyEvents(self):
+        r"""
+        Returns a stream of events that knows it will have to run in a numpy environment.
+
+        This should be an extension function, not on the EventDataSet which should be "neutral".
+        """
+        return NumpyEventStream(self)

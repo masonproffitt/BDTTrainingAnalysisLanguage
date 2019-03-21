@@ -11,8 +11,6 @@ class ast_visitor(ast.NodeVisitor):
         r'''
         Initialize the visitor.
         '''
-        # Tracks the output of the code.
-        self._gc = ''
         self._var_dict = {}
         self._result = None
 
@@ -78,7 +76,7 @@ class ast_visitor(ast.NodeVisitor):
 
         attr_name = call_node.attr
 
-        self._result = 'output_array = ' + calling_against + "['" + attr_name + "']"
+        self._result = calling_against + "['" + attr_name + "']"
 
     def visit_Name(self, name_node):
         'Visiting a name - which should represent something'
@@ -100,25 +98,23 @@ class ast_visitor(ast.NodeVisitor):
     def visit_Select(self, node):
         'Transform the iterable from one form to another'
 
-        # There isn't any difference between Select and SelectMany here
-        self.visit_SelectMany(node)
+        c = ast.Call(func=node.selection.body[0].value, args=[node.source])
+        self.visit(c)
+        node.rep = self._result
 
     def visit_SelectMany(self, node):
         r'''
         Apply the selection function to the base to generate a collection, and then
         loop over that collection.
         '''
-        # We need to "call" the source with the function. So build up a new
-        # call, and then visit it.
 
-        c = ast.Call(func=node.selection.body[0].value, args=[node.source])
-        self.visit(c)
-
-        self._gc += self._result + '\n'
+        # There isn't any difference between Select and SelectMany here
+        self.visit_Select(node)
+        node.rep += '.flatten()'
 
 class numpy_array_executor:
-    def __init__(self, dataset):
-        self._ds = dataset
+    def __init__(self, dataset_source):
+        self.dataset_source = dataset_source
 
     def apply_ast_transformations(self, ast):
         r'''
@@ -136,21 +132,24 @@ class numpy_array_executor:
         qv = ast_visitor()
         print(ast.dump(ast_node))
         qv.visit(ast_node)
-        if isinstance(self._ds, numpy.ndarray):
-            data_pathname = 'test.npy'
-            numpy.save(data_pathname, self._ds)
+        if isinstance(self.dataset_source, numpy.ndarray):
+            data_pathname = 'temp.npy'
+            numpy.save(data_pathname, self.dataset_source)
         else:
-            data_pathname = self._ds
-        f = open('test.py', 'w')
+            data_pathname = self.dataset_source
+        f = open('temp.py', 'w')
         f.write('import numpy\n')
-        f.write("numpy_array_stream = numpy.load('" + data_pathname + "')\n")
-        f.write(qv._gc)
+        source = ast_node.source
+        while hasattr(source, 'source'):
+            source = source.source
+        f.write(source.rep + " = numpy.load('" + data_pathname + "')\n")
+        f.write('output_array = ' + ast_node.rep + '\n')
         f.write("numpy.save('output.npy', output_array)\n")
         f.close()
-        os.system('python test.py')
-        if isinstance(self._ds, numpy.ndarray):
+        os.system('python temp.py')
+        if isinstance(self.dataset_source, numpy.ndarray):
             os.remove(data_pathname)
-        #os.remove('test.py')
+        os.remove('temp.py')
         output = numpy.load('output.npy')
         os.remove('output.npy')
         return output

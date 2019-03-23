@@ -1,7 +1,7 @@
 # Various node visitors to clean up nested function calls of various types.
 import ast
 from clientlib.query_ast import Select, Where, SelectMany
-from clientlib.ast_util import lambda_body, replace_lambda_body, wrap_lambda, unwrap_lambda
+from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build
 
 argument_var_counter = 0
 def arg_name():
@@ -13,6 +13,7 @@ def arg_name():
 
 def convolute(ast_g, ast_f):
     'Return an AST that represents g(f(args))'
+    #TODO: fix up the ast.Calls to use lambda_call if possible
 
     # Sanity checks. For example, g can have only one input argument (e.g. f's result)
     if (type(ast_g.body[0]) is not ast.Expr) or (type(ast_f.body[0]) is not ast.Expr):
@@ -28,85 +29,187 @@ def convolute(ast_g, ast_f):
     f_arg = ast.Name(x, ast.Load())
     call_g = ast.Call(l_g, [ast.Call(l_f, [f_arg], [])], [])
 
+    # TODO: Rewrite with lambda_build
     args = ast.arguments(args=[ast.arg(arg=x)])
     call_g_lambda = ast.Lambda(args=args, body=call_g)
 
     # Build a new call to nest the functions
-    return wrap_lambda(call_g_lambda)
+    return lambda_wrap(call_g_lambda)
 
 class simplify_chained_calls(ast.NodeTransformer):
     '''
-    something.Select(x: f(x)).Select(y: g(y))
-    is turned into
-    something.Select(x: g(f(x)))
+    In order to cleanly evaluate things like tuples (which should not show up at the back end),
+    we must move around various functions, evaluate others, etc., where we can. This AST transformer
+    does that work.
     '''
 
     def __init__(self):
         self._arg_dict = {}
 
-    def visit_Select(self, node):
-        'Select call made - if this is a chained select call, then we can perhaps combine functions'
-        parent_select = self.visit(node.source)
-        # If we are a chained select, grab that select.
-        if type(parent_select) is not Select:
-            node.selection = self.visit(node.selection)
-            return node
+    def visit_Select_of_Select(self, parent, selection):
+        r'''
+        seq.Select(x: f(x)).Select(y: g(y))
+        => Select(Select(seq, x: f(x)), y: g(y))
+        is turned into
+        seq.Select(x: g(f(x)))
+        => Select(seq, x: g(f(x)))
+        '''
+        raise BaseException('untested')
+        func_g = selection
+        func_f = parent.selection
 
-        # Select(x: f(x)).Select(y: g(y)) needs to be turned into Select(x: g(f(x))).
-        func_g = node.selection
-        func_f = parent_select.selection
-
-        # Next the functions (they are in module syntax right now)
-        parent_select.selection = self.generic_visit(convolute(func_g, func_f))
+        # Convolute the two functions
+        # TODO: should this be generic of just visit?
+        new_selection = self.generic_visit(convolute(func_g, func_f))
 
         # And return the parent select with the new selection function
-        return parent_select
+        return Select(parent.source, new_selection)
 
-    def visit_SelectMany(self, node):
-        'SelectMany call made, if this is chained to another select call, then we can combine functions'
+    def visit_Select_of_SelectMany(self, parent, selection):
+        r'''
+        seq.SelectMany(x: f(x)).Select(y: g(y))
+        => Select(SelectMany(seq, x: f(x)), y: g(y))
+        is turned into
+        seq.SelectMany(x: f(x).Select(y: g(y)))
+        => SelectMany(seq, x: Select(f(x), y: g(y)))
+        '''
+        raise BaseException('untested')
+        func_g = selection
+        func_f = parent.selection
 
-        # If we are a chained select, grab that select.
+        return self.visit(SelectMany(parent.source, lambda_body_replace(func_f, Select(lambda_body(func_f), func_g))))
+
+    def visit_Select(self, node):
+        r'''
+        Transformation #1:
+        seq.Select(x: f(x)).Select(y: g(y))
+        => Select(Select(seq, x: f(x)), y: g(y))
+        is turned into
+        seq.Select(x: g(f(x)))
+        => Select(seq, x: g(f(x)))
+
+        Transformation #2:
+        seq.SelectMany(x: f(x)).Select(y: g(y))
+        => Select(SelectMany(seq, x: f(x)), y: g(y))
+        is turned into
+        seq.SelectMany(x: f(x).Select(y: g(y)))
+        => SelectMany(seq, x: Select(f(x), y: g(y)))
+
+        Transformation #3:
+        seq.Where(x: f(x)).Select(y: g(y))
+        => Select(Where(seq, x: f(x), y: g(y))
+        is not altered.
+        '''
+
         parent_select = self.visit(node.source)
         if type(parent_select) is Select:
-            # Select(x: f(x)).SelectMany(y: g(y)) needs to be turned into SelectMany(x: g(f(x))).
-            func_g = node.selection
-            func_f = parent_select.selection
-
-            # Replace our SelectMany selection with this update, and then
-            # use the selects source for our own.
-            node.selection = self.generic_visit(convolute(func_g, func_f))
-            node.source = parent_select.source
+            return self.visit_Select_of_Select(parent_select, node.selection)
+        elif type(parent_select) is SelectMany:
+            return self.visit_Select_of_SelectMany(parent_select, node.selection)
         else:
-            node.selection = self.visit(node.selection)
+            return Select(parent_select, self.visit(node.selection))
 
-        # If the SM's selection function ends in a select.
-        # SM(x: h(x).S(y: f(y))) ==> SM(x: h(x)).S(y: f(y))
-        select_body = lambda_body(node.selection)
-        if type(select_body) is Select:
-            node.selection = replace_lambda_body(node.selection, select_body.source)
-            node = Select(node, select_body.selection)
+    def visit_SelectMany_of_Select(self, parent, selection):
+        '''
+        seq.Select(x: f(x)).SelectMany(y: g(y))
+        => SelectMany(Select(seq, x: f(x)), y:g(y))
+        is turned into
+        seq.SelectMany(x: g(f(x)))
+        => SelectMany(seq, x: g(f(x)))
+        '''
+        raise BaseException('untested')
+        func_g = selection
+        func_f = parent.selection
 
-        # And return the parent select with the new selection function
-        return node
+        new_selection = self.generic_visit(convolute(func_g, func_f))
+        return self.visit(SelectMany(parent.source, new_selection))
+    
+    def visit_SelectMany_of_SelectMany(self, parent, selection):
+        '''
+        Transformation #1:
+        seq.SelectMany(x: f(x)).SelectMany(y: f(y))
+        => SelectMany(SelectMany(seq, x: f(x)), y: f(y))
+        is turned into:
+        seq.SelectMany(x: f(x).SelectMany(y: f(y)))
+        => SelectMany(seq, x: SelectMany(f(x), y: f(y)))
+        '''
+        raise BaseException('untested')
+        func_g = selection
+        func_f = parent.selection
 
-    def visit_Where_after_select(self, parent_select, filter):
-        '''Translate `.Select.Where` to `.Where.Select` '''
+        return self.visit(SelectMany(parent.source, lambda_body_replace(func_f, SelectMany(lambda_body(func_f), func_g))))
 
-        # Unwind all the bits we are going to have to go after.
-        s_source = parent_select.source
-        s_func = parent_select.selection
+    def visit_SelectMany(self, node):
+        r'''
+        Transformation #1:
+        seq.SelectMany(x: f(x)).SelectMany(y: f(y))
+        => SelectMany(SelectMany(seq, x: f(x)), y: f(y))
+        is turned into:
+        seq.SelectMany(x: f(x).SelectMany(y: f(y)))
+        => SelectMany(seq, x: SelectMany(f(x), y: f(y)))
 
-        # Create the where ast
-        w = Where(s_source, self.visit(convolute(filter, s_func)))
+        Transformation #2:
+        seq.Select(x: f(x)).SelectMany(y: g(y))
+        => SelectMany(Select(seq, x: f(x)), y:g(y))
+        is turned into
+        seq.SelectMany(x: g(f(x)))
+        => SelectMany(seq, x: g(f(x)))
 
-        # Nest it inside a new select
-        s = Select(w, s_func)
+        Transformation #3:
+        seq.Where(x: f(x)).SelectMany(y: g(y))
+        '''
+        parent_select = self.visit(node.source)
+        if type(parent_select) is SelectMany:
+            self.visit_SelectMany_of_SelectMany(parent_select, node.selection)
+        elif type(parent_select) is Select:
+            self.visit_SelectMany_of_Select(parent_select, node.selection)
+        else:
+            return SelectMany(parent_select, self.visit(node.selection))
+
+    def visit_Where_of_Where(self, parent, filter):
+        '''
+        seq.Where(x: f(x)).Where(x: g(x))
+        => Where(Where(seq, x: f(x)), y: g(y))
+        is turned into
+        seq.Where(x: f(x) and g(y))
+        => Where(seq, x: f(x) and g(y))
+        '''
+        raise BaseException('untested')
+        func_f = parent.filter
+        func_g = filter
+
+        arg = arg_name()
+        return self.visit(Where(parent.source, lambda_build(arg, ast.And(lambda_call(arg, func_f), lambda_call(arg, func_g)))))
+
+    def visit_Where_of_Select(self, parent, filter):
+        '''
+        seq.Select(x: f(x)).Where(y: g(y))
+        => Where(Select(seq, x: f(x)), y: g(y))
+        Is turned into:
+        seq.Where(x: g(f(x))).Select(x: f(x))
+        => Select(Where(seq, x: g(f(x)), f(x))
+        '''
+        raise BaseException('untested')
+        func_f = parent.selection
+        func_g = filter
+
+        w = Where(parent.source, self.visit(convolute(func_g, func_f)))
+        s = Select(w, func_f)
 
         # Recursively visit this mess to see if the Where needs to move further up.
         return self.visit(s)
 
-    def visit_Where_after_selectmany(self, parent_selectmany, filter):
-        'Translate `Where(SelectMany(seq, x : f(x)), y: g(y))` to `SelectMany(seq, x: Where(f(x), y: g(y))`'
+    def visit_Where_of_SelectMany(self, parent, filter):
+        '''
+        seq.SelectMany(x: f(x)).Where(y: g(y))
+        => Where(SelectMany(seq, x: f(x)), y: g(y))
+        Is turned into:
+        seq.SelectMany(x: f(x).Where(y: g(y)))
+        => SelectMany(seq, x: Where(f(x), g(y)))
+        '''
+        raise BaseException('untested')
+        func_f = parent.selection
+        func_g = filter
 
         # Unwind all the bits we are going to have to go after.
         s_source = parent_selectmany.source
@@ -115,7 +218,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         # The Where's source is the call that is in the SM. Build a Call statement.
         # TODO: this is the second place in this file that this wrap and call and extract lambda
         #       code appears. It should be a common routine!
-        s_lambda = unwrap_lambda(s_func)
+        s_lambda = lambda_unwrap(s_func)
         x = arg_name()
         f_arg = ast.Name(x, ast.Load())
         call_s = ast.Call(s_lambda, [f_arg], [])
@@ -126,30 +229,40 @@ class simplify_chained_calls(ast.NodeTransformer):
         call_w_lambda = ast.Lambda(args=args, body=w)
 
         # And the new SM
-        return self.visit(SelectMany(s_source, wrap_lambda(call_w_lambda)))
-
+        return self.visit(SelectMany(s_source, lambda_wrap(call_w_lambda)))
 
     def visit_Where(self, node):
         r'''
-        We implement two translations here:
-        
-        1. `seq.Select(x: f(x)).Where(y: g(y))` => `seq.Where(x: g(f(x))).Select(x: f(x))`
-        1. `seq.SelectMany(x: f(x)).Where(y: g(y))` => 'seq.SelectMany(x: f(x).Where(y: f(y)))` 
+        Transformation #1:
+        seq.Where(x: f(x)).Where(x: g(x))
+        => Where(Where(seq, x: f(x)), y: g(y))
+        is turned into
+        seq.Where(x: f(x) and g(y))
+        => Where(seq, x: f(x) and g(y))
 
-        In both cases things have to be recursively applied.
+        Transformation #2:
+        seq.Select(x: f(x)).Where(y: g(y))
+        => Where(Select(seq, x: f(x)), y: g(y))
+        Is turned into:
+        seq.Where(x: g(f(x))).Select(x: f(x))
+        => Select(Where(seq, x: g(f(x)), f(x))
+        
+        Transformation #3:
+        seq.SelectMany(x: f(x)).Where(y: g(y))
+        => Where(SelectMany(seq, x: f(x)), y: g(y))
+        Is turned into:
+        seq.SelectMany(x: f(x).Where(y: g(y)))
+        => SelectMany(seq, x: Where(f(x), g(y)))
         '''
-
-        # Look for pattern 1 or pattern 2.
         parent_where = self.visit(node.source)
-        if type(parent_where) is Select:
-            return self.visit_Where_after_select(parent_where, node.filter)
-
-        # if type(parent_where) is SelectMany:
-        #     return self.visit_Where_after_selectmany(parent_where, node.filter)
-        
-        # Ok, nothing matched. Pass the parsing on down and return that.
-        node.filter = self.visit(node.filter)
-        return node
+        if type(parent_where) is Where:
+            return self.visit_Where_of_Where(parent_where, node.filter)
+        elif type(parent_where) is Select:
+            return self.visit_Where_of_Select(parent_where, node.filter)
+        elif type(parent_where) is SelectMany:
+            return self.visit_Where_of_SelectMany(parent_where, node.filter)
+        else:
+            return Where(parent_where, node.filter)
     
     def visit_Call(self, call_node):
         '''We are looking for cases where an argument is another function or expression.

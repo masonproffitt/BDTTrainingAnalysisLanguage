@@ -1,10 +1,10 @@
 import ast
-import numpy
+import awkward
 import os
 
 class ast_visitor(ast.NodeVisitor):
     r"""
-    Drive the conversion to numpy from the top level query
+    Drive the conversion to awkward from the top level query
     """
 
     def __init__(self):
@@ -112,7 +112,7 @@ class ast_visitor(ast.NodeVisitor):
         self.visit_Select(node)
         node.rep += '.flatten()'
 
-class numpy_array_executor:
+class awkward_array_executor:
     def __init__(self, dataset_source):
         self.dataset_source = dataset_source
 
@@ -135,21 +135,21 @@ class numpy_array_executor:
         if isinstance(self.dataset_source, str):
             data_pathname = self.dataset_source
         else:
-            data_pathname = 'temp.npy'
-            numpy.save(data_pathname, self.dataset_source)
+            data_pathname = 'temp.awkd'
+            awkward.save(data_pathname, self.dataset_source)
         f = open('temp.py', 'w')
-        f.write('import numpy\n')
+        f.write('import awkward\n')
         source = ast_node.source
         while hasattr(source, 'source'):
             source = source.source
-        f.write(source.rep + " = numpy.load('" + data_pathname + "')\n")
+        f.write(source.rep + " = awkward.load('" + data_pathname + "')\n")
         f.write('output_array = ' + ast_node.rep + '\n')
-        f.write("numpy.save('output.npy', output_array)\n")
+        f.write("awkward.save('output.awkd', output_array)\n")
         f.close()
         os.system('python temp.py')
         if not isinstance(self.dataset_source, str):
             os.remove(data_pathname)
         os.remove('temp.py')
-        output = numpy.load('output.npy')
-        os.remove('output.npy')
+        output = awkward.load('output.awkd')
+        os.remove('output.awkd')
         return output

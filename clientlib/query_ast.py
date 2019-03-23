@@ -6,6 +6,7 @@
 #
 # Of course, this being python, it is possible to add new things to the class
 # member variables.
+#TODO: Remove all Module references to lambdas that are stored in the AST.
 import ast
 
 

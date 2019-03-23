@@ -1,7 +1,7 @@
 # Executor and code for the ATLAS xAOD input files
 from xAODlib.generated_code import generated_code
 import xAODlib.statement as statement
-from clientlib.ast_util import assure_lambda, lambda_body, unwrap_lambda
+from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
 #from xAODlib.AtlasEventStream import AtlasXAODFileStream
 import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
@@ -375,7 +375,7 @@ class query_ast_visitor(ast.NodeVisitor):
         s_ast = select_ast.source if loop_var is s_rep else name_from_rep(loop_var)
 
         # Simulate this as a "call"
-        selection = unwrap_lambda(select_ast.selection)
+        selection = lambda_unwrap(select_ast.selection)
         c = ast.Call(func=selection, args=[s_ast])
         rep = self.get_rep(c)
 
@@ -408,7 +408,7 @@ class query_ast_visitor(ast.NodeVisitor):
         s_ast = node.source if loop_var is s_rep else name_from_rep(loop_var)
 
         # Simulate the filtering call - we want the resulting value to test.
-        filter = unwrap_lambda(node.filter)
+        filter = lambda_unwrap(node.filter)
         c = ast.Call(func=filter, args=[s_ast])
         rep = self.get_rep(c)
 

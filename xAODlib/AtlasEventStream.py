@@ -3,7 +3,6 @@ from clientlib.EventStream import EventStream
 from xAODlib.atlas_xaod_executor import atlas_xaod_executor
 from cpplib.cpp_representation import cpp_rep_base, cpp_variable, cpp_collection
 import ast
-import xAODlib.expression_ast as expression_ast
 import xAODlib.statement as statement
 
 
@@ -16,6 +15,7 @@ class AtlasXAODFileStream(ast.AST):
         self.dataset_url = ds_url
         # Set a rep for ourselves, but it should never be directly used.
         self.rep = cpp_variable("bogus-do-not-use")
+        self.rep.is_iterable = True # No need to build up a new loop - implied!
 
     def get_executor(self):
         return atlas_xaod_executor(self.dataset_url)

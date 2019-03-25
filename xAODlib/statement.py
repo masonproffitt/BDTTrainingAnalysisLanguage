@@ -12,15 +12,15 @@ class block:
         'Add statement s to the list of statements'
         self._statements += [s]
 
-    def declare_variable(self, t, n):
-        'Declare a variable of type t and name n at the top of this scope block'
-        self._variables += [(t,n)]
+    def declare_variable(self, n):
+        'Declare a variable n, which is of type cpp_variable'
+        self._variables += [n]
 
     def emit(self, e):
         'Render the block of code'
         e.add_line("{")
-        for v_t, v_n in self._variables:
-            e.add_line("{0} {1};".format(v_t, v_n))
+        for v in self._variables:
+            e.add_line("{0} {1};".format(v.cpp_type(), v.name()))
         for s in self._statements:
             s.emit(e)
         e.add_line("}")
@@ -40,6 +40,25 @@ class loop(block):
             self._loop_variable, self._collection_name))
         block.emit(self, e)
 
+class iftest(block):
+    'An if statement'
+    def __init__ (self, if_expr):
+        block.__init__(self)
+        self._expr = if_expr
+
+    def emit(self, e):
+        e.add_line('if ({0})'.format(self._expr.as_cpp()))
+        block.emit(self, e)
+
+class elsephrase(block):
+    'An else statement. Must come after you pop and if statement off'
+    def __init__(self):
+        block.__init__(self)
+
+    def emit(self, e):
+        'Emit an else statement'
+        e.add_line('else')
+        block.emit(self, e)
 
 class book_ttree:
     'Book a TTree for writing out. Meant to be in the Book method'
@@ -55,7 +74,7 @@ class book_ttree:
         e.add_line('auto myTree = tree ("{0}");'.format(self._tree_name))
         for var_pair in self._leaves:
             e.add_line(
-                'myTree->Branch("{0}", &{1});'.format(var_pair[0], var_pair[1]))
+                'myTree->Branch("{0}", &{1});'.format(var_pair[0], var_pair[1].as_cpp()))
 
 
 class ttree_fill:
@@ -83,11 +102,14 @@ class set_var:
     'Set a variable to a value'
 
     def __init__(self, target_var, value_var):
+        r'''
+        target_var, value_var: representations we will use
+        '''
         self._target = target_var
         self._value = value_var
 
     def emit(self, e):
-        e.add_line('{0} = {1};'.format(self._target, self._value))
+        e.add_line('{0} = {1};'.format(self._target.as_cpp(), self._value.as_cpp()))
 
 class arbitrary_statement:
     'An arbitrary line of C++ code. Avoid if possible, as it makes analysis impossible'

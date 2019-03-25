@@ -37,7 +37,13 @@ class replace_LINQ_operators(ast.NodeTransformer):
         if type(node.func) is ast.Attribute:
             func_name =  node.func.attr
             if func_name == "Select":
-                return query_ast.Select(node.func.value, wrap_lambda(node.args[0]))
+                source = self.visit(node.func.value)
+                selection = self.visit(node.args[0])
+                return query_ast.Select(source, wrap_lambda(selection))
             elif func_name == "SelectMany":
-                return query_ast.SelectMany(node.func.value, wrap_lambda(node.args[0]))
+                source = self.visit(node.func.value)
+                selection = self.visit(node.args[0])
+                return query_ast.SelectMany(source, wrap_lambda(selection))
+            else:
+                return self.generic_visit(node)
         return node

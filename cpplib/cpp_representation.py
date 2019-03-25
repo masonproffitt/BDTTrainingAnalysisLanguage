@@ -8,7 +8,7 @@ import ast
 
 def name_from_rep(rep):
     'Create an ast.Name from a variable representation'
-    a = ast.Name(rep.as_cpp())
+    a = ast.Name(rep.as_cpp(), ast.Load())
     a.rep = rep
     return a
 

@@ -54,7 +54,6 @@ class simplify_chained_calls(ast.NodeTransformer):
         seq.Select(x: g(f(x)))
         => Select(seq, x: g(f(x)))
         '''
-        raise BaseException('untested')
         func_g = selection
         func_f = parent.selection
 
@@ -120,9 +119,10 @@ class simplify_chained_calls(ast.NodeTransformer):
         raise BaseException('untested')
         func_g = selection
         func_f = parent.selection
+        seq = parent.source
 
         new_selection = self.generic_visit(convolute(func_g, func_f))
-        return self.visit(SelectMany(parent.source, new_selection))
+        return self.visit(SelectMany(seq, new_selection))
     
     def visit_SelectMany_of_SelectMany(self, parent, selection):
         '''
@@ -160,9 +160,9 @@ class simplify_chained_calls(ast.NodeTransformer):
         '''
         parent_select = self.visit(node.source)
         if type(parent_select) is SelectMany:
-            self.visit_SelectMany_of_SelectMany(parent_select, node.selection)
+            return self.visit_SelectMany_of_SelectMany(parent_select, node.selection)
         elif type(parent_select) is Select:
-            self.visit_SelectMany_of_Select(parent_select, node.selection)
+            return self.visit_SelectMany_of_Select(parent_select, node.selection)
         else:
             return SelectMany(parent_select, self.visit(node.selection))
 
@@ -210,26 +210,9 @@ class simplify_chained_calls(ast.NodeTransformer):
         raise BaseException('untested')
         func_f = parent.selection
         func_g = filter
+        seq = parent.source
 
-        # Unwind all the bits we are going to have to go after.
-        s_source = parent_selectmany.source
-        s_func = parent_selectmany.selection
-
-        # The Where's source is the call that is in the SM. Build a Call statement.
-        # TODO: this is the second place in this file that this wrap and call and extract lambda
-        #       code appears. It should be a common routine!
-        s_lambda = lambda_unwrap(s_func)
-        x = arg_name()
-        f_arg = ast.Name(x, ast.Load())
-        call_s = ast.Call(s_lambda, [f_arg], [])
-        w = Where(call_s, filter)
-
-        # Now, the Where needs to be turned into a lambda.
-        args = ast.arguments(args=[ast.arg(arg=x)])
-        call_w_lambda = ast.Lambda(args=args, body=w)
-
-        # And the new SM
-        return self.visit(SelectMany(s_source, lambda_wrap(call_w_lambda)))
+        return self.visit(SelectMany(seq, lambda_body_replace(func_f, Where(lambda_body(func_f), func_g))))
 
     def visit_Where(self, node):
         r'''

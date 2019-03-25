@@ -6,7 +6,7 @@ from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
 import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
-from cpplib.cpp_representation import cpp_variable, cpp_collection, name_from_rep, cpp_expression
+from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression
 from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
 from clientlib.aggregate_shortcuts import aggregate_node_transformer
@@ -199,7 +199,7 @@ class query_ast_visitor(ast.NodeVisitor):
             first_scope = self._gc.current_scope()
 
             if init_lambda is not None:
-                call = ast.Call(init_lambda, [name_from_rep(rep_iterator)])
+                call = ast.Call(init_lambda, [rep_iterator.as_ast()])
                 self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
             else:
                 self._gc.add_statement(statement.set_var(result, rep_iterator))
@@ -209,7 +209,7 @@ class query_ast_visitor(ast.NodeVisitor):
             self._gc.add_statement(statement.elsephrase())
 
         # Perform the aggregation function. We need to call it with the value and the accumulator.
-        call = ast.Call(agg_lambda, [name_from_rep(result), name_from_rep(rep_iterator)])
+        call = ast.Call(agg_lambda, [result.as_ast(), rep_iterator.as_ast()])
         self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
 
         # Finally, pop the whole thing off.
@@ -372,11 +372,10 @@ class query_ast_visitor(ast.NodeVisitor):
         # Make sure we are in a loop
         s_rep = self.get_rep(select_ast.source)
         loop_var = self.assure_in_loop(s_rep)
-        s_ast = select_ast.source if loop_var is s_rep else name_from_rep(loop_var)
 
         # Simulate this as a "call"
         selection = lambda_unwrap(select_ast.selection)
-        c = ast.Call(func=selection, args=[s_ast])
+        c = ast.Call(func=selection, args=[loop_var.as_ast()])
         rep = self.get_rep(c)
 
         if type(rep) is not tuple:
@@ -405,11 +404,10 @@ class query_ast_visitor(ast.NodeVisitor):
         # Make sure we are in a loop
         s_rep = self.get_rep(node.source)
         loop_var = self.assure_in_loop(s_rep)
-        s_ast = node.source if loop_var is s_rep else name_from_rep(loop_var)
 
         # Simulate the filtering call - we want the resulting value to test.
         filter = lambda_unwrap(node.filter)
-        c = ast.Call(func=filter, args=[s_ast])
+        c = ast.Call(func=filter, args=[loop_var.as_ast()])
         rep = self.get_rep(c)
 
         # Create an if statement

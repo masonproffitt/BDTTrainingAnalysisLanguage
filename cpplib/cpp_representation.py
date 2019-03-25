@@ -6,12 +6,6 @@ import xAODlib.statement as statement
 from cpplib.cpp_vars import unique_name
 import ast
 
-def name_from_rep(rep):
-    'Create an ast.Name from a variable representation'
-    a = ast.Name(rep.as_cpp(), ast.Load())
-    a.rep = rep
-    return a
-
 class cpp_rep_base:
     r'''
     Represents a term or collection in C++ code. Queried to perform certian actions on the C++ term or collection.
@@ -22,10 +16,21 @@ class cpp_rep_base:
     def __init__(self):
         # Set to true when we represent an item in an interable type. 
         self.is_iterable = False
+        self._ast = None
 
     def as_cpp(self):
         'Return the C++ code to represent whatever we are holding'
         raise BaseException("Subclasses need to implement in for as_cpp")
+
+    def as_ast(self):
+        'Return a python AST for this representation'
+        if not self._ast:
+            self.make_ast()
+        return self._ast
+    
+    def make_ast(self):
+        'Create and fill the _ast variable with the ast for this rep'
+        raise BaseException("Subclasses need to implement this in as_ast")
 
 class cpp_variable(cpp_rep_base):
     r'''
@@ -37,6 +42,7 @@ class cpp_variable(cpp_rep_base):
         self._cpp_name = name
         self._is_pointer = is_pointer
         self._cpp_type = cpp_type
+        self._ast = None
 
     def name(self):
         return self._cpp_name
@@ -49,6 +55,10 @@ class cpp_variable(cpp_rep_base):
 
     def cpp_type(self):
         return self._cpp_type
+
+    def make_ast(self):
+        self._ast = ast.Name(self.as_cpp(), ast.Load())
+        self._ast.rep = self
 
 class cpp_expression(cpp_rep_base):
     r'''

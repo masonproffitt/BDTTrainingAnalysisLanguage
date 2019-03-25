@@ -189,11 +189,11 @@ class simplify_chained_calls(ast.NodeTransformer):
         seq.Where(x: g(f(x))).Select(x: f(x))
         => Select(Where(seq, x: g(f(x)), f(x))
         '''
-        raise BaseException('untested')
         func_f = parent.selection
         func_g = filter
+        seq = parent.source
 
-        w = Where(parent.source, self.visit(convolute(func_g, func_f)))
+        w = Where(seq, self.visit(convolute(func_g, func_f)))
         s = Select(w, func_f)
 
         # Recursively visit this mess to see if the Where needs to move further up.

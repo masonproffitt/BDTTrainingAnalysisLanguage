@@ -88,8 +88,8 @@ events = f.AsATLASEvents()
 #     .SelectMany('lambda e1: e1[1]') \
 #     .Select('lambda j: j.pt()') \
 #     .AsPandasDF(columns=['JetPt']).value()
-training_df = events.Select('lambda e: (e.EventInfo("EventInfo").runNumber(),)') \
-    .Select('lambda e1: e1[0]') \
+training_df = events.Select('lambda e: e.EventInfo("EventInfo").runNumber()') \
+    .Where('lambda rn: rn > 500') \
     .AsPandasDF(columns=['JetPt']).value()
 
 # Following works, but is commented out for now till we can integrate it above. Just

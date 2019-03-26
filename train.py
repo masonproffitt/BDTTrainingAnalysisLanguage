@@ -88,12 +88,19 @@ events = f.AsATLASEvents()
 #     .Where('lambda e2: e2[2] > 40.0') \
 #     .AsPandasDF(columns=['run', 'nTrack', 'jetPt']) \
 #     .value()
+# training_df = events \
+#     .Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"), e.Tracks("InDetTrackParticles").Where(lambda t: t.pt() > 1000.0))') \
+#     .SelectMany('lambda e1: e1[1].Select(lambda j1: (e1[0].runNumber(), e1[0].eventNumber(), j1.pt()/1000.0, e1[2].Count()))') \
+#     .Where('lambda e2: e2[2] > 40.0') \
+#     .AsPandasDF(columns=['RunNumber', 'EventNumber', 'JetPt', 'nTracks']).value()
 # -->
 training_df = events \
-    .Select('lambda e: (e.EventInfo("EventInfo"), e.Jets("AntiKt4EMTopoJets"), e.Tracks("InDetTrackParticles").Where(lambda t: t.pt() > 1000.0))') \
-    .SelectMany('lambda e1: e1[1].Select(lambda j1: (e1[0].runNumber(), e1[0].eventNumber(), j1.pt()/1000.0, e1[2].Count()))') \
-    .Where('lambda e2: e2[2] > 40.0') \
-    .AsPandasDF(columns=['RunNumber', 'EventNumber', 'JetPt', 'nTracks']).value()
+            .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'))") \
+            .SelectMany('lambda e1: e1[1].Select(lambda j: (e1[0],j))') \
+            .Select('lambda jinfo: (jinfo[0].runNumber(), jinfo[0].eventNumber(), jinfo[1].pt()/1000.0, jinfo[1].eta())') \
+            .Where('lambda jinfo1: jinfo1[2] > 40.0') \
+            .AsPandasDF(columns=['Run', 'Event', 'JetPt', 'JetEta']) \
+            .value()
 
 # Following works, but is commented out for now till we can integrate it above. Just
 # for show, in short.

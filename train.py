@@ -90,6 +90,7 @@ events = f.AsATLASEvents()
 #     .AsPandasDF(columns=['JetPt']).value()
 training_df = events.Select('lambda e: e.EventInfo("EventInfo").runNumber()') \
     .Where('lambda rn: rn > 500') \
+    .Where('lambda rn1: rn > 1000') \
     .AsPandasDF(columns=['JetPt']).value()
 
 # Following works, but is commented out for now till we can integrate it above. Just

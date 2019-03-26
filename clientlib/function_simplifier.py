@@ -174,12 +174,11 @@ class simplify_chained_calls(ast.NodeTransformer):
         seq.Where(x: f(x) and g(y))
         => Where(seq, x: f(x) and g(y))
         '''
-        raise BaseException('untested')
         func_f = parent.filter
         func_g = filter
 
         arg = arg_name()
-        return self.visit(Where(parent.source, lambda_build(arg, ast.And(lambda_call(arg, func_f), lambda_call(arg, func_g)))))
+        return self.visit(Where(parent.source, lambda_build(arg, ast.BoolOp(ast.And, [lambda_call(arg, func_f), lambda_call(arg, func_g)]))))
 
     def visit_Where_of_Select(self, parent, filter):
         '''

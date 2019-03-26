@@ -330,6 +330,38 @@ class query_ast_visitor(ast.NodeVisitor):
         node.rep = r
         self._result = r
 
+    def visit_BoolOp(self, node):
+        '''A bool op like And or Or on a set of values
+        This is a bit more complex than just "anding" things as we want to make sure to short-circuit the
+        evaluation if we need to.
+        '''
+
+        # The result of this test
+        result = cpp_variable(unique_name('bool_op'), cpp_type='bool')
+        self._gc.declare_variable (result)
+
+        # How we check and short-circuit depends on if we are doing and or or.
+        check_expr = result.as_cpp() if node.op == ast.And else '!{0}'.format(result.as_cpp())
+        check = cpp_expression(check_expr, cpp_type='bool')
+
+        first = True
+        scope = self._gc.current_scope()
+        for v in node.values:
+            if not first:
+                self._gc.add_statement(statement.iftest(check))
+
+            rep_v = self.get_rep(v)
+            self._gc.add_statement(statement.set_var(result, rep_v))
+
+            if not first:
+                self._gc.set_scope(scope)
+            first = False
+        
+        # Cache result variable so those above us have something to use.
+        self._result = result
+        node.rep = result
+
+
     def visit_Num(self, node):
         node.rep = cpp_expression(node.n)
         self._result = node.rep

@@ -245,7 +245,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         elif type(parent_where) is SelectMany:
             return self.visit_Where_of_SelectMany(parent_where, node.filter)
         else:
-            return Where(parent_where, node.filter)
+            return Where(parent_where, self.visit(node.filter))
     
     def visit_Call(self, call_node):
         '''We are looking for cases where an argument is another function or expression.

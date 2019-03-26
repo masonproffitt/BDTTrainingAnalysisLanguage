@@ -67,6 +67,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         '''
         if hasattr(node, 'rep'):
+            self._result = node.rep
             return
         else:
             return ast.NodeVisitor.visit(self, node)

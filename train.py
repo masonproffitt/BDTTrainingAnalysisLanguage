@@ -88,7 +88,8 @@ events = f.AsATLASEvents()
 #     .SelectMany('lambda e1: e1[1]') \
 #     .Select('lambda j: j.pt()') \
 #     .AsPandasDF(columns=['JetPt']).value()
-training_df = events.SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets")') \
+training_df = events.Select('lambda e: e.Jets("AntiKt4EMTopoJets")') \
+    .SelectMany('lambda js: js') \
     .Select('lambda j: j.pt()/1000.0') \
     .AsPandasDF(columns=['JetPt']).value()
 

@@ -6,7 +6,7 @@ from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
 import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
-from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression
+from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple
 from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
 from clientlib.aggregate_shortcuts import aggregate_node_transformer
@@ -210,7 +210,7 @@ class query_ast_visitor(ast.NodeVisitor):
             self._gc.add_statement(statement.elsephrase())
 
         # Perform the aggregation function. We need to call it with the value and the accumulator.
-        call = ast.Call(agg_lambda, [result.as_ast(), rep_iterator.as_ast()])
+        call = ast.Call(func=agg_lambda, args=[result.as_ast(), rep_iterator.as_ast()])
         self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
 
         # Finally, pop the whole thing off.
@@ -268,7 +268,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         See github bug #21 for the special case of dealing with (x1, x2, x3)[0].
         '''
-        tuple_node.rep = tuple(self.get_rep(e) for e in tuple_node.elts)
+        tuple_node.rep = cpp_tuple(tuple(self.get_rep(e) for e in tuple_node.elts))
         self._result = tuple_node.rep
 
     def visit_BinOp(self, node):
@@ -383,11 +383,9 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # For each varable we need to save, put it in the C++ variable we've created above
         # and then trigger a fill statement once that is all done.
-
         self.generic_visit(node)
-        v_rep = self.get_rep(node.source)
-        if type(v_rep) is not tuple:
-            v_rep = (v_rep,)
+        v_rep_not_norm = self.get_rep(node.source)
+        v_rep = v_rep_not_norm.tup() if type(v_rep_not_norm) is cpp_tuple else (v_rep_not_norm,)
         if len(v_rep) != len(var_names):
             raise BaseException("Number of columns ({0}) is not the same as labels ({1}) in TTree creation".format(len(v_rep), len(var_names)))
 
@@ -411,9 +409,7 @@ class query_ast_visitor(ast.NodeVisitor):
         c = ast.Call(func=selection, args=[loop_var.as_ast()])
         rep = self.get_rep(c)
 
-        if type(rep) is not tuple:
-            #TODO: Make sure this is necessary.
-            rep.is_iterable = True
+        rep.is_iterable = True
         select_ast.rep = rep
 
     def visit_SelectMany(self, node):
@@ -494,9 +490,6 @@ class atlas_xaod_executor:
         '''
 
         # Do tuple resolutions. This might eliminate a whole bunch fo code!
-        #TODO: Remove this debugging line
-        from clientlib.ast_util import pretty_print
-
         ast = aggregate_node_transformer().visit(ast)
         ast = simplify_chained_calls().visit(ast)
         ast = remove_tuple_subscripts().visit(ast)

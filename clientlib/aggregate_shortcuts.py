@@ -14,7 +14,7 @@ def generate_count_call (seq):
     agg_lambda = ast.parse("lambda acc,v: acc + 1").body[0].value
     agg_start = ast.Num(0)
 
-    new_call = ast.Call(ast.Attribute(attr="Aggregate", value=seq),args=[agg_start, agg_lambda])
+    new_call = ast.Call(func=ast.Attribute(attr="Aggregate", value=seq),args=[agg_start, agg_lambda])
     return new_call
 
 class aggregate_node_transformer(ast.NodeTransformer):

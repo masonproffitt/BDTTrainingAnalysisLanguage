@@ -60,6 +60,17 @@ class cpp_variable(cpp_rep_base):
         self._ast = ast.Name(self.as_cpp(), ast.Load())
         self._ast.rep = self
 
+class cpp_tuple(cpp_rep_base):
+    r'''
+    Sometimes we need to carry around a tuple. Unfortunately, we can't "add" items onto a regular
+    python tuple (like is_iterable, etc.). So we have to have this special wrapper.
+    '''
+    def __init__ (self, t):
+        self._tuple = t
+    
+    def tup(self):
+        return self._tuple
+
 class cpp_expression(cpp_rep_base):
     r'''
     Represents a small bit of C++ code that is an expression. For example "a+b". It does not hold full

@@ -17,6 +17,7 @@ import ast
 import tempfile
 from shutil import copyfile
 import os
+import sys
 from urllib.parse import urlparse
 import jinja2
 
@@ -474,6 +475,19 @@ class cpp_source_emitter:
     def lines_of_query_code(self):
         return self._lines_of_query_code
 
+# The following was copied from: https://www.oreilly.com/library/view/python-cookbook/0596001673/ch04s22.html
+def _find(pathname, matchFunc=os.path.isfile):
+    for dirname in sys.path:
+        candidate = os.path.join(dirname, pathname)
+        if matchFunc(candidate):
+            return candidate
+    raise Error("Can't find file %s" % pathname)
+
+def find_dir(pathname):
+    return _find(pathname)
+
+def find_dir(path):
+    return _find(path, matchFunc=os.path.isdir)
 
 class atlas_xaod_executor:
     def __init__(self, dataset):
@@ -531,8 +545,9 @@ class atlas_xaod_executor:
             info['class_dec'] = class_dec_code
             info['include_files'] = includes
 
-            # Next, copy over and fill the template files
-            template_dir = "./R21Code"
+            # Next, copy over and fill the template files.
+            # Assume they are located relative to the python include path.
+            template_dir = find_dir("./R21Code")
             j2_env = jinja2.Environment(
                 loader=jinja2.FileSystemLoader(template_dir))
             self.copy_template_file(

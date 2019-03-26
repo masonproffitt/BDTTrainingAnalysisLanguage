@@ -412,6 +412,7 @@ class query_ast_visitor(ast.NodeVisitor):
         rep = self.get_rep(c)
 
         if type(rep) is not tuple:
+            #TODO: Make sure this is necessary.
             rep.is_iterable = True
         select_ast.rep = rep
 
@@ -427,7 +428,9 @@ class query_ast_visitor(ast.NodeVisitor):
         rep_collection = self.get_rep(c)
 
         # Get the collection, and then generate the loop over it.
-        rep_iterator = rep_collection.loop_over_collection(self._gc)
+        # It could be that this comes back from something that is already iterating (like a Select statement),
+        # in which case we are already looping.
+        rep_iterator = self.assure_in_loop(rep_collection)
 
         node.rep = rep_iterator
 

@@ -72,7 +72,6 @@ class simplify_chained_calls(ast.NodeTransformer):
         seq.SelectMany(x: f(x).Select(y: g(y)))
         => SelectMany(seq, x: Select(f(x), y: g(y)))
         '''
-        raise BaseException('untested')
         func_g = selection
         func_f = parent.selection
 

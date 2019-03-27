@@ -10,13 +10,13 @@ class pretty_print_visitor(ast.NodeVisitor):
     def print_fields (self, node):
         'Handle different types of fields'
         if isinstance(node, list):
-            self._s.write('  '*self._indent + '[\n')
+            self._s.write('    '*self._indent + '[\n')
             self._indent += 1
             for f in node:
                 self.print_fields(f)
                 self._s.write(',\n')
             self._indent -= 1
-            self._s.write('  '*self._indent + ']\n')
+            self._s.write('    '*self._indent + ']\n')
         elif isinstance(node, ast.AST):
             first = True
             for field, value in ast.iter_fields(node):
@@ -24,7 +24,7 @@ class pretty_print_visitor(ast.NodeVisitor):
                     self._s.write(',\n')
                 first = False
 
-                self._s.write('  '*self._indent + field + "=")
+                self._s.write('    '*self._indent + field + "=")
                 self._indent += 1
                 self.visit(value)
                 self._indent -= 1
@@ -50,7 +50,7 @@ class pretty_print_visitor(ast.NodeVisitor):
         if self.count_fields(node) > 0:
             self._s.write('\n')
             self.print_fields (node)
-            self._s.write('  '*self._indent)
+            self._s.write('    '*self._indent)
         self._s.write(')')
 
     def visit_Num(self, node):
@@ -67,7 +67,8 @@ def pretty_print (ast):
     pretty_print_visitor(stdout).visit(ast)
     stdout.write("\n")
 
-def wrap_lambda(l):
+# Following are some tools to help with lambdas
+def lambda_wrap(l):
     '''
     Given an AST lambda node, correctly wrap it in a module the way the python parser does.
 
@@ -83,18 +84,51 @@ def wrap_lambda(l):
 
     return ast.Module(body=[ast.Expr(l)])
 
+def lambda_args(l):
+    'Return the arguments of a lambda'
+    return lambda_unwrap(l).args
+
+def lambda_unwrap(l):
+    'Given an AST of a lambda node, return the lambda node. If it is burried in a module, then unwrap it'
+    lb = l.body[0].value if type(l) is ast.Module else l
+    if type(lb) is not ast.Lambda:
+        raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
+
+    return lb
+
 def lambda_body(l):
     '''
     Given an AST lambda node, get the expression it uses and return it. This just makes life easier,
     no real logic is occuring here.
     '''
-    lb = l.body[0].value if type(l) is ast.Module else l
-    if type(lb) is not ast.Lambda:
-        raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
+    return lambda_unwrap(l).body
 
-    return lb.body
+def lambda_call(args, l):
+    '''
+    Call a lambda with the named args.
 
-def replace_lambda_body(l, new_expr):
+    args: a single string or a list of strings
+    l: The lambda we want to call. I can be wrapped in a module (or not).
+    '''
+    if type(args) is str:
+        args = [args]
+    named_args = [ast.Name(x, ast.Load()) for x in args]
+    return ast.Call(lambda_unwrap(l), named_args, [])
+
+def lambda_build(args, l_expr):
+    '''
+    Given a named argument(s), and an expression, build a lambda wrapped in a Module.
+
+    args: the string names of the arguments to the lambda. May be a list or a single name
+    l_expr: An AST node that is the body of the lambda.
+    '''
+    if type(args) is str:
+        args = [args]
+    ast_args = ast.arguments(args=[ast.arg(arg=x) for x in args])
+    call_lambda = ast.Lambda(args=ast_args, body=l_expr)
+    return lambda_wrap(call_lambda)
+
+def lambda_body_replace(l, new_expr):
     '''
     Return a new lambda function that has new_expr as the body rather than the old one. Otherwise, everything is the same.
 
@@ -110,23 +144,23 @@ def replace_lambda_body(l, new_expr):
         raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
 
     new_l = ast.Lambda(lb.args, new_expr)
-    return wrap_lambda(new_l) if type(l) is ast.Module else l
+    return lambda_wrap(new_l) if type(l) is ast.Module else l
 
-def assure_lambda(east, nargs=None):
+def lambda_assure(east, nargs=None):
     r'''
     Make sure the Python expression ast is a lambda call, and that it has the right number of args.
 
     east - python expression ast (module ast)
     nargs - number of args it is required to have. If None, no check is done.
     '''
-    if not test_lambda(east, nargs):
+    if not lambda_test(east, nargs):
         raise BaseException(
             'Expression AST is not a lambda function with the right number of arguments')
 
     return east
 
 
-def test_lambda(east, nargs):
+def lambda_test(east, nargs):
     r''' Test arguments
     TODO: Either fill this in or eliminate it.
     '''

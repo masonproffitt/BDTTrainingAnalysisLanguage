@@ -1,12 +1,12 @@
 # Executor and code for the ATLAS xAOD input files
 from xAODlib.generated_code import generated_code
 import xAODlib.statement as statement
-from clientlib.ast_util import assure_lambda, lambda_body
+from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
 #from xAODlib.AtlasEventStream import AtlasXAODFileStream
 import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
-from cpplib.cpp_representation import cpp_variable, cpp_collection, name_from_rep, cpp_expression
+from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple
 from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
 from clientlib.aggregate_shortcuts import aggregate_node_transformer
@@ -17,6 +17,7 @@ import ast
 import tempfile
 from shutil import copyfile
 import os
+import sys
 from urllib.parse import urlparse
 import jinja2
 
@@ -60,13 +61,14 @@ class query_ast_visitor(ast.NodeVisitor):
         return self._gc.class_declaration_code()
 
     def visit (self, node):
-        '''Visit a note. If the node already has a rep, then it has been visited and we
+        '''Visit a node. If the node already has a rep, then it has been visited and we
         do not need to visit it again.
 
         node - if the node has a rep, just return
 
         '''
         if hasattr(node, 'rep'):
+            self._result = node.rep
             return
         else:
             return ast.NodeVisitor.visit(self, node)
@@ -112,8 +114,11 @@ class query_ast_visitor(ast.NodeVisitor):
         self.visit(call_node.func.body)
 
         # Done processing the lambda. Remove the arguments
-        for l_arg in call_node.func.args.args:
-            del self._var_dict[l_arg.arg]
+        # TODO: the below code should work, but it isn't for some reason.
+        #       Probably because when we move functions we aren't moving the argument names
+        #       correctly (the nesting). This is going to come back and bite us!
+        # for l_arg in call_node.func.args.args:
+        #     del self._var_dict[l_arg.arg]
 
     def assure_in_loop(self, collection):
         r'''
@@ -147,21 +152,21 @@ class query_ast_visitor(ast.NodeVisitor):
         Limitations: only floats for now!
         '''
         # Parse the argument list
-        use_first_element_seperately = False
+        use_first_element_separately = False
         agg_lambda = None
         init_lambda = None
         init_val = None
         if len(node.args) == 1:
             agg_lambda = node.args[0]
-            use_first_element_seperately = True
+            use_first_element_separately = True
         elif len(node.args) == 2:
             agg_lambda = node.args[1]
             if type(node.args[0]) is ast.Lambda:
-                use_first_element_seperately = True
+                use_first_element_separately = True
                 init_lambda = node.args[0]
             else:
                 init_val = node.args[0]
-                use_first_element_seperately = False
+                use_first_element_desperately = False
         else:
             raise BaseException('Aggregate can have only one or two arguments')
 
@@ -169,9 +174,9 @@ class query_ast_visitor(ast.NodeVisitor):
         result = cpp_variable(unique_name("aggResult"), cpp_type="float")
         self._gc.declare_variable(result)
 
-        # We have to initalize the variable to some value, and it depends on how the user
-        # is trying to initalie things - first iteration or with a value.
-        if use_first_element_seperately:
+        # We have to initialized the variable to some value, and it depends on how the user
+        # is trying to initialize things - first iteration or with a value.
+        if use_first_element_desperately:
             is_first_iter = cpp_variable(unique_name("is_first"), cpp_type="bool")
             self._gc.declare_variable(is_first_iter)
             self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("true")))
@@ -184,20 +189,19 @@ class query_ast_visitor(ast.NodeVisitor):
         # Next, get the thing we are going to loop over, and generate the loop.
         # Pull the result out of the main result guy
         collection = self.get_rep(node.func.value)
-        collection = self._result
 
         # Iterate over it now. Make sure we are looping over this thing.
         rep_iterator = self.assure_in_loop(collection)
 
         # If we have to use the first lambda to set the first value, then we need that code up front.
-        if use_first_element_seperately:
+        if use_first_element_separately:
             if_first = statement.iftest(cpp_expression(is_first_iter.as_cpp()))
             self._gc.add_statement(if_first)
             self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("false")))
             first_scope = self._gc.current_scope()
 
             if init_lambda is not None:
-                call = ast.Call(init_lambda, [name_from_rep(rep_iterator)])
+                call = ast.Call(init_lambda, [rep_iterator.as_ast()])
                 self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
             else:
                 self._gc.add_statement(statement.set_var(result, rep_iterator))
@@ -206,8 +210,8 @@ class query_ast_visitor(ast.NodeVisitor):
             self._gc.pop_scope()
             self._gc.add_statement(statement.elsephrase())
 
-        # Perform the agregation function. We need to call it with the value and the accumulator.
-        call = ast.Call(agg_lambda, [name_from_rep(result), name_from_rep(rep_iterator)])
+        # Perform the aggregation function. We need to call it with the value and the accumulator.
+        call = ast.Call(func=agg_lambda, args=[result.as_ast(), rep_iterator.as_ast()])
         self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
 
         # Finally, pop the whole thing off.
@@ -265,7 +269,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         See github bug #21 for the special case of dealing with (x1, x2, x3)[0].
         '''
-        tuple_node.rep = tuple(self.get_rep(e) for e in tuple_node.elts)
+        tuple_node.rep = cpp_tuple(tuple(self.get_rep(e) for e in tuple_node.elts))
         self._result = tuple_node.rep
 
     def visit_BinOp(self, node):
@@ -275,6 +279,8 @@ class query_ast_visitor(ast.NodeVisitor):
 
         if type(node.op) is ast.Add:
             r = cpp_expression("({0}+{1})".format(left.as_cpp(), right.as_cpp()))
+        elif type(node.op) is ast.Div:
+            r = cpp_expression("({0}/{1})".format(left.as_cpp(), right.as_cpp()))
         else:
             raise BaseException("Binary operator {0} is not implemented.".format(type(node.op)))
 
@@ -287,12 +293,12 @@ class query_ast_visitor(ast.NodeVisitor):
         We'd like to be able to use the "?" operator in C++, but the
         problem is lazy evaluation. It could be when we look at one or the
         other item, a bunch of prep work has to be done - and that will
-        show up in seperate statements. So we have to use if/then/else with
+        show up in separate statements. So we have to use if/then/else with
         a result value.
         '''
         
         # The result we'll store everything in.
-        result = cpp_variable(unique_name("ifelse_result"), cpp_type="float")
+        result = cpp_variable(unique_name("if_else_result"), cpp_type="float")
         self._gc.declare_variable(result)
 
         # We always have to evaluate the test.
@@ -325,6 +331,38 @@ class query_ast_visitor(ast.NodeVisitor):
         node.rep = r
         self._result = r
 
+    def visit_BoolOp(self, node):
+        '''A bool op like And or Or on a set of values
+        This is a bit more complex than just "anding" things as we want to make sure to short-circuit the
+        evaluation if we need to.
+        '''
+
+        # The result of this test
+        result = cpp_variable(unique_name('bool_op'), cpp_type='bool')
+        self._gc.declare_variable (result)
+
+        # How we check and short-circuit depends on if we are doing and or or.
+        check_expr = result.as_cpp() if node.op == ast.And else '!{0}'.format(result.as_cpp())
+        check = cpp_expression(check_expr, cpp_type='bool')
+
+        first = True
+        scope = self._gc.current_scope()
+        for v in node.values:
+            if not first:
+                self._gc.add_statement(statement.iftest(check))
+
+            rep_v = self.get_rep(v)
+            self._gc.add_statement(statement.set_var(result, rep_v))
+
+            if not first:
+                self._gc.set_scope(scope)
+            first = False
+        
+        # Cache result variable so those above us have something to use.
+        self._result = result
+        node.rep = result
+
+
     def visit_Num(self, node):
         node.rep = cpp_expression(node.n)
         self._result = node.rep
@@ -346,11 +384,9 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # For each varable we need to save, put it in the C++ variable we've created above
         # and then trigger a fill statement once that is all done.
-
         self.generic_visit(node)
-        v_rep = self.get_rep(node.source)
-        if type(v_rep) is not tuple:
-            v_rep = (v_rep,)
+        v_rep_not_norm = self.get_rep(node.source)
+        v_rep = v_rep_not_norm.tup() if type(v_rep_not_norm) is cpp_tuple else (v_rep_not_norm,)
         if len(v_rep) != len(var_names):
             raise BaseException("Number of columns ({0}) is not the same as labels ({1}) in TTree creation".format(len(v_rep), len(var_names)))
 
@@ -365,20 +401,16 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_Select(self, select_ast):
         'Transform the iterable from one form to another'
 
-        s_rep = self.get_rep(select_ast.source)
-        selection = select_ast.selection.body[0].value
-
         # Make sure we are in a loop
+        s_rep = self.get_rep(select_ast.source)
         loop_var = self.assure_in_loop(s_rep)
-        s_ast = select_ast.source if loop_var is s_rep else name_from_rep(loop_var)
 
         # Simulate this as a "call"
-        c = ast.Call(func=selection, args=[s_ast])
-        self.visit(c)
+        selection = lambda_unwrap(select_ast.selection)
+        c = ast.Call(func=selection, args=[loop_var.as_ast()])
+        rep = self.get_rep(c)
 
-        rep = self._result
-        if type(rep) is not tuple:
-            rep.is_iterable = True
+        rep.is_iterable = True
         select_ast.rep = rep
 
     def visit_SelectMany(self, node):
@@ -390,15 +422,34 @@ class query_ast_visitor(ast.NodeVisitor):
         # call, and then visit it.
 
         c = ast.Call(func=node.selection.body[0].value, args=[node.source])
-        self.visit(c)
-
-        # The result is the collection we need to be looking at.
-        rep_collection = self._result
+        rep_collection = self.get_rep(c)
 
         # Get the collection, and then generate the loop over it.
-        rep_iterator = rep_collection.loop_over_collection(self._gc)
+        # It could be that this comes back from something that is already iterating (like a Select statement),
+        # in which case we are already looping.
+        rep_iterator = self.assure_in_loop(rep_collection)
 
         node.rep = rep_iterator
+
+    def visit_Where(self, node):
+        'Apply a filtering to the current loop.'
+
+        # Make sure we are in a loop
+        s_rep = self.get_rep(node.source)
+        loop_var = self.assure_in_loop(s_rep)
+
+        # Simulate the filtering call - we want the resulting value to test.
+        filter = lambda_unwrap(node.filter)
+        c = ast.Call(func=filter, args=[loop_var.as_ast()])
+        rep = self.get_rep(c)
+
+        # Create an if statement
+        self._gc.add_statement(statement.iftest(rep))
+
+        # Finally, our result is basically what we had for the source.
+        node.rep = loop_var
+        self._result = loop_var
+
 
 
 class cpp_source_emitter:
@@ -424,6 +475,19 @@ class cpp_source_emitter:
     def lines_of_query_code(self):
         return self._lines_of_query_code
 
+# The following was copied from: https://www.oreilly.com/library/view/python-cookbook/0596001673/ch04s22.html
+def _find(pathname, matchFunc=os.path.isfile):
+    for dirname in sys.path:
+        candidate = os.path.join(dirname, pathname)
+        if matchFunc(candidate):
+            return candidate
+    raise Error("Can't find file %s" % pathname)
+
+def find_dir(pathname):
+    return _find(pathname)
+
+def find_dir(path):
+    return _find(path, matchFunc=os.path.isdir)
 
 class atlas_xaod_executor:
     def __init__(self, dataset):
@@ -440,9 +504,6 @@ class atlas_xaod_executor:
         '''
 
         # Do tuple resolutions. This might eliminate a whole bunch fo code!
-        #TODO: Remove this debugging line
-        from clientlib.ast_util import pretty_print
-
         ast = aggregate_node_transformer().visit(ast)
         ast = simplify_chained_calls().visit(ast)
         ast = remove_tuple_subscripts().visit(ast)
@@ -484,8 +545,9 @@ class atlas_xaod_executor:
             info['class_dec'] = class_dec_code
             info['include_files'] = includes
 
-            # Next, copy over and fill the template files
-            template_dir = "./R21Code"
+            # Next, copy over and fill the template files.
+            # Assume they are located relative to the python include path.
+            template_dir = find_dir("./R21Code")
             j2_env = jinja2.Environment(
                 loader=jinja2.FileSystemLoader(template_dir))
             self.copy_template_file(

@@ -32,6 +32,12 @@ class ObjectStream:
         """
         return ObjectStream(query_ast.Select(self._ast, parse_ast(f)))
 
+    def Where(self, filter_lambda):
+        r'''
+        User wants to filter the sequence at the top level.
+        '''
+        return ObjectStream(query_ast.Where(self._ast, parse_ast(filter_lambda)))
+
     def AsPandasDF(self, columns=[]):
         r"""
         Return a pandas dataframe. We do this by running the conversion.

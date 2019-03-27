@@ -6,6 +6,7 @@
 #
 # Of course, this being python, it is possible to add new things to the class
 # member variables.
+#TODO: Remove all Module references to lambdas that are stored in the AST.
 import ast
 
 
@@ -46,3 +47,22 @@ class Select(ast.AST):
         self.selection = select_function
         self.source = source
         self._fields = ('source', 'selection')
+
+class Where(ast.AST):
+    r'''
+    AST node for filtering: Where. Filters input, only allowing parts of the sequence that
+    satisfy the operator to move on.
+    '''
+
+    def __init__ (self, source, filter_lambda):
+        r'''
+        Initialize an AST node that represents a filter operation (Where). As input takes
+        an iterator and only lets through items in the sequence that pass the `filter_lambda`
+        criteria.
+
+        source - An AST that represents the source sequence.
+        filter_lambda - a filter function to be applied to the sequence.
+        '''
+        self.source = source
+        self.filter = filter_lambda
+        self._fields = ('source', 'filter')

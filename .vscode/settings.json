@@ -14,6 +14,7 @@
         "elts",
         "gordo",
         "iftest",
+        "isdir",
         "nargs",
         "ntuple",
         "numpy",

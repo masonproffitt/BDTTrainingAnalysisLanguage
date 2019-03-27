@@ -481,9 +481,9 @@ def _find(pathname, matchFunc=os.path.isfile):
         candidate = os.path.join(dirname, pathname)
         if matchFunc(candidate):
             return candidate
-    raise Error("Can't find file %s" % pathname)
+    raise BaseException("Can't find file %s" % pathname)
 
-def find_dir(pathname):
+def find_file(pathname):
     return _find(pathname)
 
 def find_dir(path):

@@ -30,9 +30,9 @@ class CPPCodeValue (ast.AST):
         # This is invoked in its own scope (between "{" and "}") so there are no variable collisions.
         self.running_code = []
 
-        # Replacements - in all the code replace the keys with the values. This is so arguments can be pasted in directly.
-        # "obj" is specially - if this is a method call, it represents the object that is getting called against.
-        self.replacements = {}
+        # The arguments to the function. These are "correctly" mapped into the argument values
+        # that are passed to the function and then a text replacement is done in the code.
+        self.args = []
 
         # Special replacement if this is a method call. A tuple. THe first item is the string to be replaced in the
         # code. The second is the name against which we should be making the call (e.g. if j is the current jet variable,
@@ -55,6 +55,13 @@ class cpp_ast_finder(ast.NodeTransformer):
     node.
     '''
 
+    def try_call (self, name, node):
+        'Try to use name to do the call. Returns (ok, result) monad'
+        if name in method_names:
+            cpp_call_ast = method_names[name](node)
+            return (cpp_call_ast is not None, cpp_call_ast)
+        return (False, None)
+
     def visit_Call(self, node):
         r'''
         Looking for a member call of a particular name. We rewrite that as
@@ -68,14 +75,14 @@ class cpp_ast_finder(ast.NodeTransformer):
 
         # Examine the func to see if this is a member call.
         func = node.func
-        if (type(func) is not ast.Attribute) or (type(func.value) is not ast.Name):
-            return node
-
-        # Next, get the name and see if we can find it somewhere.
-        if func.attr in method_names:
-            cpp_call_ast = method_names[func.attr](node)
-            if cpp_call_ast is not None:
-                return cpp_call_ast
+        if (type(func) is ast.Attribute) and (type(func.value) is ast.Name):
+            ok, new_node = self.try_call(func.attr, node)
+            if ok:
+                return new_node
+        elif type(func) is ast.Name:
+            ok, new_node = self.try_call(func.id, node)
+            if ok:
+                return new_node
 
         return node
 
@@ -102,14 +109,16 @@ def process_ast_node(visitor, gc, current_loop_value, call_node):
     for i in cpp_ast_node.include_files:
         gc.add_include(i)
 
-    # Build the dictionary for replacement
+    # Build the dictionary for replacement for the object we are calling
+    # against, if any.
     repl_list = []
     if cpp_ast_node.replacement_instance_obj is not None:
         repl_list += [(cpp_ast_node.replacement_instance_obj[0], visitor.resolve_id(cpp_ast_node.replacement_instance_obj[1]).rep.name())]
-    for src,dest in cpp_ast_node.replacements.items():
-        if type(dest) is str:
-            dest = '"' + dest + '"'
-        repl_list += [(src, dest)]
+
+    # Process the arguments that are getting passed to the function
+    for arg,dest in zip(cpp_ast_node.args, call_node.args):
+        rep = visitor.get_rep(dest)
+        repl_list += [(arg, rep.as_cpp())]
 
     # Emit the statements.
     blk = statements.block()

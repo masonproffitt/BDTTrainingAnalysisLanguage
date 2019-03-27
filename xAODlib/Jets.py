@@ -13,11 +13,10 @@ def getMomentFloatAst(call_node):
         raise BaseException("Calling getMomentFloat - only one argument is allowed")
     if type(call_node.args[0]) is not ast.Str:
         raise BaseException("Calling getMomentFloat - only acceptable argument is a string")
-    moment_name = call_node.args[0].s
 
     r = cpp_ast.CPPCodeValue()
     # We don't need include files for this - just quick access
-    r.replacements['moment_name'] = moment_name
+    r.args = ['moment_name',]
     r.replacement_instance_obj = ('obj_j', call_node.func.value.id)
     r.running_code += ['float result = obj_j->getAttribute<float>(moment_name);']
     r.result = 'result'

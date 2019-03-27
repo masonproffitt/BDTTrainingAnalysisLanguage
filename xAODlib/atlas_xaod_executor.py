@@ -260,7 +260,7 @@ class query_ast_visitor(ast.NodeVisitor):
         elif type(call_node.func) is cpp_ast.CPPCodeValue:
             self._result = cpp_ast.process_ast_node(self, self._gc, self._result, call_node)
         else:
-            raise BaseException("Do not know how to call '{0}'".format(call_node.func))
+            raise BaseException("Do not know how to call '{0}'".format(ast.dump(call_node.func, annotate_fields=False)))
         call_node.rep = self._result
 
     def visit_Tuple(self, tuple_node):
@@ -365,6 +365,10 @@ class query_ast_visitor(ast.NodeVisitor):
 
     def visit_Num(self, node):
         node.rep = cpp_expression(node.n)
+        self._result = node.rep
+
+    def visit_Str(self, node):
+        node.rep = cpp_expression('"{0}"'.format(node.s))
         self._result = node.rep
 
     def visit_CreatePandasDF(self, node):

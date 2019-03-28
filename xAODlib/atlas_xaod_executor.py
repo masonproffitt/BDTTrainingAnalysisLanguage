@@ -32,6 +32,14 @@ compare_operations = {
     ast.NotEq: '!=',
 }
 
+def type_of_rep(rep):
+    '''
+    Return a float unless it is an iterable. Then it is a vector of float.
+    '''
+    if rep.is_iterable:
+        return "std::vector<float>"
+    return "float"
+
 class query_ast_visitor(ast.NodeVisitor):
     r"""
     Drive the conversion to C++ from the top level query
@@ -84,15 +92,19 @@ class query_ast_visitor(ast.NodeVisitor):
         else:
             return ast.NodeVisitor.generic_visit(self, node)
 
-    def get_rep(self, node, use_generic_visit = False, reset_result = None):
+    def get_rep(self, node, use_generic_visit = False, reset_result = None, retain_scope = False):
         r'''Return the rep for the node. If it isn't set yet, then run our visit on it.
 
         node - The ast node to generate a representation for.
         use_generic_visit - if true do generic_visit rather than visit.
         reset_result - Reset the _result variable to this value if requested.
+        retain_scope - If true, then the scope level will remain the same before and after the call.
         '''
         if not hasattr(node, 'rep'):
+            s = self._gc.current_scope() if retain_scope else None
             self.generic_visit(node) if use_generic_visit else self.visit(node)
+            if retain_scope:
+                self._gc.set_scope(s)
 
         # Reset the result
         if reset_result is not None:
@@ -129,8 +141,15 @@ class query_ast_visitor(ast.NodeVisitor):
 
         collection: representation of a C++ collection or transformed iterable.
         '''
+        # Before we do anything, make sure we are at the proper place for doing this loop
+        self._gc.set_scope(collection.scope()) if collection.scope() is not None else None
+
+        # Now, if the collection is already something are iterating on, then
+        # we are done.
         if collection.is_iterable:
             return collection
+
+        # Nope - can we iterate on it (might crash due to user error)
         return collection.loop_over_collection(self._gc)
 
 
@@ -171,15 +190,15 @@ class query_ast_visitor(ast.NodeVisitor):
             raise BaseException('Aggregate can have only one or two arguments')
 
         # Declare the thing that will be a result, and make sure everything above knows about it.
-        result = cpp_variable(unique_name("aggResult"), cpp_type="float")
+        result = cpp_variable(unique_name("aggResult"), self._gc.current_scope(), cpp_type="float")
         self._gc.declare_variable(result)
 
         # We have to initialized the variable to some value, and it depends on how the user
         # is trying to initialize things - first iteration or with a value.
         if use_first_element_desperately:
-            is_first_iter = cpp_variable(unique_name("is_first"), cpp_type="bool")
+            is_first_iter = cpp_variable(unique_name("is_first"), self._gc.current_scope(), cpp_type="bool")
             self._gc.declare_variable(is_first_iter)
-            self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("true")))
+            self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("true", self._gc.current_scope())))
         else:
             self._gc.add_statement(statement.set_var(result, self.get_rep(init_val)))
 
@@ -195,9 +214,9 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # If we have to use the first lambda to set the first value, then we need that code up front.
         if use_first_element_separately:
-            if_first = statement.iftest(cpp_expression(is_first_iter.as_cpp()))
+            if_first = statement.iftest(cpp_expression(is_first_iter.as_cpp(), self._gc.current_scope()))
             self._gc.add_statement(if_first)
-            self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("false")))
+            self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("false", self._gc.current_scope())))
             first_scope = self._gc.current_scope()
 
             if init_lambda is not None:
@@ -240,7 +259,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # We support member calls that directly translate only. Here, for example, this is only for
         # obj.pt() or similar. The translation is direct.
         c_stub = calling_against.name() + ("->" if calling_against.is_pointer() else "->")
-        self._result = cpp_expression(c_stub + function_name + "()")
+        self._result = cpp_expression(c_stub + function_name + "()", calling_against.scope())
 
     def visit_Name(self, name_node):
         'Visiting a name - which should represent something'
@@ -269,7 +288,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         See github bug #21 for the special case of dealing with (x1, x2, x3)[0].
         '''
-        tuple_node.rep = cpp_tuple(tuple(self.get_rep(e) for e in tuple_node.elts))
+        tuple_node.rep = cpp_tuple(tuple(self.get_rep(e, retain_scope=True) for e in tuple_node.elts), self._gc.current_scope())
         self._result = tuple_node.rep
 
     def visit_BinOp(self, node):
@@ -278,9 +297,9 @@ class query_ast_visitor(ast.NodeVisitor):
         right = self.get_rep(node.right)
 
         if type(node.op) is ast.Add:
-            r = cpp_expression("({0}+{1})".format(left.as_cpp(), right.as_cpp()))
+            r = cpp_expression("({0}+{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope())
         elif type(node.op) is ast.Div:
-            r = cpp_expression("({0}/{1})".format(left.as_cpp(), right.as_cpp()))
+            r = cpp_expression("({0}/{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope())
         else:
             raise BaseException("Binary operator {0} is not implemented.".format(type(node.op)))
 
@@ -298,7 +317,7 @@ class query_ast_visitor(ast.NodeVisitor):
         '''
         
         # The result we'll store everything in.
-        result = cpp_variable(unique_name("if_else_result"), cpp_type="float")
+        result = cpp_variable(unique_name("if_else_result"), self._gc.current_scope(), cpp_type="float")
         self._gc.declare_variable(result)
 
         # We always have to evaluate the test.
@@ -327,7 +346,7 @@ class query_ast_visitor(ast.NodeVisitor):
         left = self.get_rep(node.left)
         right = self.get_rep(node.comparators[0])
 
-        r = cpp_expression('({0}{1}{2})'.format(left.as_cpp(), compare_operations[type(node.ops[0])], right.as_cpp()))
+        r = cpp_expression('({0}{1}{2})'.format(left.as_cpp(), compare_operations[type(node.ops[0])], right.as_cpp()), self._gc.current_scope())
         node.rep = r
         self._result = r
 
@@ -338,12 +357,12 @@ class query_ast_visitor(ast.NodeVisitor):
         '''
 
         # The result of this test
-        result = cpp_variable(unique_name('bool_op'), cpp_type='bool')
+        result = cpp_variable(unique_name('bool_op'), self._gc.current_scope(), cpp_type='bool')
         self._gc.declare_variable (result)
 
         # How we check and short-circuit depends on if we are doing and or or.
         check_expr = result.as_cpp() if node.op == ast.And else '!{0}'.format(result.as_cpp())
-        check = cpp_expression(check_expr, cpp_type='bool')
+        check = cpp_expression(check_expr, self._gc.current_scope(), cpp_type='bool')
 
         first = True
         scope = self._gc.current_scope()
@@ -364,11 +383,11 @@ class query_ast_visitor(ast.NodeVisitor):
 
 
     def visit_Num(self, node):
-        node.rep = cpp_expression(node.n)
+        node.rep = cpp_expression(node.n, self._gc.current_scope())
         self._result = node.rep
 
     def visit_Str(self, node):
-        node.rep = cpp_expression('"{0}"'.format(node.s))
+        node.rep = cpp_expression('"{0}"'.format(node.s), self._gc.current_scope())
         self._result = node.rep
 
     def visit_CreatePandasDF(self, node):
@@ -451,6 +470,7 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.add_statement(statement.iftest(rep))
 
         # Finally, our result is basically what we had for the source.
+        loop_var.set_scope(self._gc.current_scope())
         node.rep = loop_var
         self._result = loop_var
 
@@ -571,7 +591,8 @@ class atlas_xaod_executor:
             # Now use docker to run this mess
             docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(
                 local_run_dir, datafile_dir)
-            os.system(docker_cmd)
+            r = os.system(docker_cmd)
+            print ("Process result is ", r)
             os.system("type " + os.path.join(local_run_dir, "query.cxx"))
 
             # Extract the result.

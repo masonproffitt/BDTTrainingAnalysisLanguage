@@ -20,7 +20,7 @@ def getMomentFloatAst(call_node):
     r.replacement_instance_obj = ('obj_j', call_node.func.value.id)
     r.running_code += ['float result = obj_j->getAttribute<float>(moment_name);']
     r.result = 'result'
-    r.result_rep = cpp_variable(unique_name("jets"), cpp_type="float")
+    r.result_rep = cpp_variable(unique_name("jets"), scope=None, cpp_type="float")
 
     # Replace it as the function that is going to get called.
     call_node.func = r

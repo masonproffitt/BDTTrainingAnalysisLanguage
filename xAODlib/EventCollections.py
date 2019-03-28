@@ -47,9 +47,9 @@ def getCollection(info, call_node):
 
     is_collection = info['is_collection'] if 'is_collection' in info else True
     if is_collection:
-        r.result_rep = cpp_collection(unique_name(info['function_name'].lower()), cpp_type=info['container_type'], is_pointer=True)
+        r.result_rep = cpp_collection(unique_name(info['function_name'].lower()), scope=None, cpp_type=info['container_type'], is_pointer=True)
     else:
-        r.result_rep = cpp_variable(unique_name(info['function_name'].lower()), cpp_type=info['container_type'], is_pointer=True)
+        r.result_rep = cpp_variable(unique_name(info['function_name'].lower()), scope=None, cpp_type=info['container_type'], is_pointer=True)
 
     # Replace it as the function that is going to get called.
     call_node.func = r

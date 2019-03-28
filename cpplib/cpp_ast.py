@@ -103,6 +103,7 @@ def process_ast_node(visitor, gc, current_loop_value, call_node):
     # We write everything into a new scope to prevent conflicts. So we have to declare the result ahead of time.
     cpp_ast_node = call_node.func
     result_rep = cpp_ast_node.result_rep
+    result_rep.set_scope(gc.current_scope())
     gc.declare_variable(result_rep)
 
     # Include files
@@ -131,7 +132,7 @@ def process_ast_node(visitor, gc, current_loop_value, call_node):
         blk.add_statement(statements.arbitrary_statement(l))
 
     # Set the result and close the scope
-    blk.add_statement(statements.set_var(result_rep, cpp_expression(cpp_ast_node.result)))
+    blk.add_statement(statements.set_var(result_rep, cpp_expression(cpp_ast_node.result, gc.current_scope())))
     gc.pop_scope()
 
     return result_rep

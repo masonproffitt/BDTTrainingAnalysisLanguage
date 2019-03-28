@@ -397,28 +397,43 @@ class query_ast_visitor(ast.NodeVisitor):
     def visit_CreateTTreeFile(self, node):
         '''This AST means we are taking an iterable and converting it to a file.
         '''
+        # Get the representations for each variable.
+        self.generic_visit(node)
+        v_rep_not_norm = self.get_rep(node.source)
+        v_rep = v_rep_not_norm.tup() if type(v_rep_not_norm) is cpp_tuple else (v_rep_not_norm,)
+        if len(v_rep) != len(node.column_names):
+            raise BaseException("Number of columns ({0}) is not the same as labels ({1}) in TTree creation".format(len(v_rep), len(node.column_names)))
+
+        # Next, look at each on in turn to decide if it is a vector or a simple variable.
+        var_names = [(name, cpp_variable(unique_name(name, is_class_var=True), self._gc.current_scope(), cpp_type=type_of_rep(rep))) 
+                    for name, rep in zip(node.column_names, v_rep)]
+
         # For each incoming variable, we need to declare something we are going to write.
-        var_names = [(name, cpp_variable(unique_name(name, is_class_var=True), cpp_type="float")) for name in node.column_names]
         for cv in var_names:
             self._gc.declare_class_variable(cv[1])
 
         # Next, emit the booking code
         self._gc.add_book_statement(statement.book_ttree("analysis", var_names))
 
-        # For each varable we need to save, put it in the C++ variable we've created above
-        # and then trigger a fill statement once that is all done.
-        self.generic_visit(node)
-        v_rep_not_norm = self.get_rep(node.source)
-        v_rep = v_rep_not_norm.tup() if type(v_rep_not_norm) is cpp_tuple else (v_rep_not_norm,)
-        if len(v_rep) != len(var_names):
-            raise BaseException("Number of columns ({0}) is not the same as labels ({1}) in TTree creation".format(len(v_rep), len(var_names)))
-
+        # For each varable we need to save, cache it or push it back, depending.
+        # Make sure that it happens at the proper scope, where what we are after is defined!
+        s_orig = self._gc.current_scope()
         for e in zip(v_rep, var_names):
-            self._gc.add_statement(statement.set_var(e[1][1], e[0]))
+            self._gc.set_scope(e[0].scope())
+            if e[0].is_iterable:
+                self._gc.add_statement(statement.push_back(e[1][1], e[0]))
+            else:
+                self._gc.add_statement(statement.set_var(e[1][1], e[0]))
 
+        # The fill statement. This should happen at the scope where the tuple was defined.
+        self._gc.set_scope(v_rep_not_norm.scope())
         self._gc.add_statement(statement.ttree_fill("analysis"))
+        for e in zip(v_rep, var_names):
+            if e[0].is_iterable:
+                self._gc.add_statement(statement.container_clear(e[1][1]))
 
         # And we are a terminal, so pop off the block.
+        self._gc.set_scope(s_orig)
         self._gc.pop_scope()
 
     def visit_Select(self, select_ast):

@@ -73,8 +73,7 @@ class book_ttree:
             self._tree_name))
         e.add_line('auto myTree = tree ("{0}");'.format(self._tree_name))
         for var_pair in self._leaves:
-            e.add_line(
-                'myTree->Branch("{0}", &{1});'.format(var_pair[0], var_pair[1].as_cpp()))
+            e.add_line('myTree->Branch("{0}", &{1});'.format(var_pair[0], var_pair[1].as_cpp()))
 
 
 class ttree_fill:
@@ -110,6 +109,31 @@ class set_var:
 
     def emit(self, e):
         e.add_line('{0} = {1};'.format(self._target.as_cpp(), self._value.as_cpp()))
+
+class push_back:
+    'push a variable onto a vector'
+
+    def __init__(self, target_collection, value_var):
+        r'''
+        target_col, value_var: representations we will use
+        '''
+        self._target = target_collection
+        self._value = value_var
+
+    def emit(self, e):
+        e.add_line('{0}.push_back({1});'.format(self._target.as_cpp(), self._value.as_cpp()))
+
+class container_clear:
+    'push a variable onto a vector'
+
+    def __init__(self, collection):
+        r'''
+        target_col, value_var: representations we will use
+        '''
+        self._collection = collection
+
+    def emit(self, e):
+        e.add_line('{0}.clear();'.format(self._collection.as_cpp()))
 
 class arbitrary_statement:
     'An arbitrary line of C++ code. Avoid if possible, as it makes analysis impossible'

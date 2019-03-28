@@ -94,13 +94,18 @@ events = f.AsATLASEvents()
 #     .SelectMany('lambda e1: e1[1].Select(lambda j1: (e1[0].runNumber(), e1[0].eventNumber(), j1.pt()/1000.0, e1[2].Count()))') \
 #     .Where('lambda e2: e2[2] > 40.0') \
 #     .AsPandasDF(columns=['RunNumber', 'EventNumber', 'JetPt', 'nTracks']).value()
+# training_df = events \
+#             .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
+#             .SelectMany('lambda e1: e1[1].Select(lambda j: (e1[0],j,e1[2]))') \
+#             .Select('lambda jInfo: (jInfo[0].runNumber(), jInfo[0].eventNumber(), jInfo[1].pt()/1000.0, jInfo[1].eta(), jInfo[2].Where(lambda t1: DeltaR(t1.eta(), t1.phi(), jInfo[1].eta(), jInfo[1].phi()) < 0.2).Count())') \
+#             .Where('lambda jInfo1: jInfo1[2] > 40.0') \
+#             .AsPandasDF(columns=['Run', 'Event', 'JetPt', 'JetEta', 'NTracks']) \
+#             .value()
 # -->
 training_df = events \
-            .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
-            .SelectMany('lambda e1: e1[1].Select(lambda j: (e1[0],j,e1[2]))') \
-            .Select('lambda jInfo: (jInfo[0].runNumber(), jInfo[0].eventNumber(), jInfo[1].pt()/1000.0, jInfo[1].eta(), jInfo[2].Where(lambda t1: DeltaR(t1.eta(), t1.phi(), jInfo[1].eta(), jInfo[1].phi()) < 0.2).Count())') \
-            .Where('lambda jInfo1: jInfo1[2] > 40.0') \
-            .AsPandasDF(columns=['Run', 'Event', 'JetPt', 'JetEta', 'NTracks']) \
+            .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets').Where(lambda j: j.pt()/1000.0 > 40.0), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
+            .Select('lambda j1: (j1[0].runNumber(), j1[0].eventNumber(), j1[1].Select(lambda j2: j2.pt()/1000.0), j1[1].Select(lambda j3: j3.eta()), j1[2].Select(lambda t2: t2.pt()/1000.0))') \
+            .AsPandasDF(columns=['Run', 'Event', 'JetPts', 'JetEtas', 'TrackPts']) \
             .value()
 
 # Following works, but is commented out for now till we can integrate it above. Just

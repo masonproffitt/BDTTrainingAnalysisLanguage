@@ -105,7 +105,7 @@ events = f.AsATLASEvents()
 training_df = events \
             .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets').Where(lambda j: j.pt()/1000.0 > 40.0), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
             .Select('lambda j1: (j1[0].runNumber(), j1[0].eventNumber(), j1[1].Select(lambda j2: j2.pt()/1000.0), j1[1].Select(lambda j3: j3.eta()), j1[2].Select(lambda t2: t2.pt()/1000.0))') \
-            .AsROOTFile(columns=['Run', 'Event', 'JetPts', 'JetEtas', 'TrackPts']) \
+            .AsAwkwardArray(columns=['Run', 'Event', 'JetPts', 'JetEtas', 'TrackPts']) \
             .value()
 
 # Following works, but is commented out for now till we can integrate it above. Just

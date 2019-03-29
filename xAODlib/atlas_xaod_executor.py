@@ -10,9 +10,8 @@ from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
 from clientlib.aggregate_shortcuts import aggregate_node_transformer
 import xAODlib.result_handlers as rh
+import clientlib.query_result_asts as query_result_asts
 
-import pandas as pd
-import uproot
 import ast
 import tempfile
 from shutil import copyfile
@@ -35,6 +34,7 @@ compare_operations = {
 # Result handlers - for each return type representation, add a handler that can process it
 result_handlers = {
         rh.cpp_ttree_rep: rh.extract_result_TTree,
+        rh.cpp_awkward_rep: rh.extract_awkward_result,
 }
 
 def type_of_rep(rep):
@@ -444,6 +444,16 @@ class query_ast_visitor(ast.NodeVisitor):
         # And we are a terminal, so pop off the block.
         self._gc.set_scope(s_orig)
         self._gc.pop_scope()
+
+    def visit_resultAwkwardArray(self, node):
+        '''
+        The result of this guy is an awkward array. We generate a token here, and invoke the resultTTree in order to get the
+        actual ROOT file written. Later on, when dealing with the result stuff, we extract it into an awkward array.
+        '''
+        ttree = query_result_asts.resultTTree(node.source, node.column_names)
+        r = self.get_rep(ttree)
+        node.rep = rh.cpp_awkward_rep(r.filename, r.treename, self._gc.current_scope())
+        self._result = node.rep
 
     def visit_Select(self, select_ast):
         'Transform the iterable from one form to another'

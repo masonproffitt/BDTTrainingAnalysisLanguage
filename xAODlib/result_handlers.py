@@ -68,3 +68,29 @@ def extract_awkward_result(rep, run_dir):
     df = data_file[rep.treename].arrays()
     data_file._context.source.close()
     return df
+
+#############
+# Pandas Return
+class cpp_pandas_rep(cpp_rep_base):
+    'This is how an awkward array comes back'
+    def __init__ (self, filename, treename, scope):
+        cpp_rep_base.__init__(self, scope)
+        self.filename = filename
+        self.treename = treename
+
+def extract_pandas_result(rep, run_dir):
+    '''
+    Given the rep, and the local running directory, load the result into memory. Once we are done the
+    file can be removed or discarded.
+
+    rep: the cpp_pandas_rep which will tell us what file to go after
+    run_dir: location where all the data was written out by the docker run.
+
+    returns:
+    awk: THe awkward array
+    '''
+    output_file = "file://{0}/{1}".format(run_dir, rep.filename)
+    data_file = uproot.open(output_file)
+    df = data_file[rep.treename].pandas.df()
+    data_file._context.source.close()
+    return df

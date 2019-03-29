@@ -35,6 +35,7 @@ compare_operations = {
 result_handlers = {
         rh.cpp_ttree_rep: rh.extract_result_TTree,
         rh.cpp_awkward_rep: rh.extract_awkward_result,
+        rh.cpp_pandas_rep: rh.extract_pandas_result,
 }
 
 def type_of_rep(rep):
@@ -455,6 +456,16 @@ class query_ast_visitor(ast.NodeVisitor):
         node.rep = rh.cpp_awkward_rep(r.filename, r.treename, self._gc.current_scope())
         self._result = node.rep
 
+    def visit_resultPandasDF(self, node):
+        '''
+        The result of this guy is an pandas dataframe. We generate a token here, and invoke the resultTTree in order to get the
+        actual ROOT file written. Later on, when dealing with the result stuff, we extract it into an awkward array.
+        '''
+        ttree = query_result_asts.resultTTree(node.source, node.column_names)
+        r = self.get_rep(ttree)
+        node.rep = rh.cpp_pandas_rep(r.filename, r.treename, self._gc.current_scope())
+        self._result = node.rep
+
     def visit_Select(self, select_ast):
         'Transform the iterable from one form to another'
 
@@ -632,8 +643,3 @@ class atlas_xaod_executor:
             if type(result_rep) not in result_handlers:
                 raise BaseException('Do not know how to process result of type {0}.'.format(type(result_rep).__name__))
             return result_handlers[type(result_rep)](result_rep, local_run_dir)
-            # output_file = "file://{0}/data.root".format(local_run_dir)
-            # data_file = uproot.open(output_file)
-            # df = data_file["analysis"].pandas.df()
-            # data_file._context.source.close()
-            # return df

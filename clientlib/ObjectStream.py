@@ -1,7 +1,6 @@
 # A stream of some object
 import clientlib.query_ast as query_ast
 from clientlib.query_result_asts import resultTTree, resultPandasDF, resultAwkwardArray
-import clientlib.pandas_df_ast as pandas_df_ast
 from clientlib.find_LINQ_operators import parse_ast
 import ast
 

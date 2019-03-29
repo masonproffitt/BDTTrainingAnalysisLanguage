@@ -2,7 +2,6 @@
 from xAODlib.generated_code import generated_code
 import xAODlib.statement as statement
 from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
-#from xAODlib.AtlasEventStream import AtlasXAODFileStream
 import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
@@ -10,6 +9,7 @@ from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expressi
 from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
 from clientlib.aggregate_shortcuts import aggregate_node_transformer
+import xAODlib.result_handlers as rh
 
 import pandas as pd
 import uproot
@@ -30,6 +30,11 @@ compare_operations = {
     ast.GtE: '>=',
     ast.Eq: '==',
     ast.NotEq: '!=',
+}
+
+# Result handlers - for each return type representation, add a handler that can process it
+result_handlers = {
+        rh.cpp_ttree_rep: rh.extract_result_TTree,
 }
 
 def type_of_rep(rep):
@@ -394,8 +399,8 @@ class query_ast_visitor(ast.NodeVisitor):
         'Generate the code to convert to a pandas DF'
         self.generic_visit(node)
 
-    def visit_CreateTTreeFile(self, node):
-        '''This AST means we are taking an iterable and converting it to a file.
+    def visit_resultTTree(self, node):
+        '''This AST means we are taking an iterable and converting it to a ROOT file.
         '''
         # Get the representations for each variable.
         self.generic_visit(node)
@@ -413,7 +418,11 @@ class query_ast_visitor(ast.NodeVisitor):
             self._gc.declare_class_variable(cv[1])
 
         # Next, emit the booking code
-        self._gc.add_book_statement(statement.book_ttree("analysis", var_names))
+        tree_name = unique_name("analysis_tree")
+        self._gc.add_book_statement(statement.book_ttree(tree_name, var_names))
+
+        # Note that the output file and tree are what we are going to return.
+        node.rep = rh.cpp_ttree_rep("data.root", tree_name, self._gc.current_scope())
 
         # For each varable we need to save, cache it or push it back, depending.
         # Make sure that it happens at the proper scope, where what we are after is defined!
@@ -427,7 +436,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # The fill statement. This should happen at the scope where the tuple was defined.
         self._gc.set_scope(v_rep_not_norm.scope())
-        self._gc.add_statement(statement.ttree_fill("analysis"))
+        self._gc.add_statement(statement.ttree_fill(tree_name))
         for e in zip(v_rep, var_names):
             if e[0].is_iterable:
                 self._gc.add_statement(statement.container_clear(e[1][1]))
@@ -558,9 +567,12 @@ class atlas_xaod_executor:
         Evaluate the ast over the file that we have been asked to run over
         """
 
-        # Visit the AST to generate the code
+        # Visit the AST to generate the code structure and find out what the
+        # result is going to be.
         qv = query_ast_visitor()
-        qv.visit(ast)
+        result_rep = qv.get_rep(ast)
+
+        # Emit the C++ code into our dictionaries to be used in template generation below.
         query_code = cpp_source_emitter()
         qv.emit_query(query_code)
         book_code = cpp_source_emitter()
@@ -584,7 +596,7 @@ class atlas_xaod_executor:
             info['class_dec'] = class_dec_code
             info['include_files'] = includes
 
-            # Next, copy over and fill the template files.
+            # Next, copy over and fill the template files that will control the xAOD running.
             # Assume they are located relative to the python include path.
             template_dir = find_dir("./R21Code")
             j2_env = jinja2.Environment(
@@ -599,10 +611,6 @@ class atlas_xaod_executor:
 
             os.chmod(os.path.join(local_run_dir, 'runner.sh'), 0o755)
 
-            # Next, build the control python files by scanning the AST for what is needed
-
-            # Build the C++ file
-
             # Now use docker to run this mess
             docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(
                 local_run_dir, datafile_dir)
@@ -611,8 +619,11 @@ class atlas_xaod_executor:
             os.system("type " + os.path.join(local_run_dir, "query.cxx"))
 
             # Extract the result.
-            output_file = "file://{0}/data.root".format(local_run_dir)
-            data_file = uproot.open(output_file)
-            df = data_file["analysis"].pandas.df()
-            data_file._context.source.close()
-            return df
+            if type(result_rep) not in result_handlers:
+                raise BaseException('Do not know how to process result of type {0}.'.format(type(result_rep).__name__))
+            return result_handlers[type(result_rep)](result_rep, local_run_dir)
+            # output_file = "file://{0}/data.root".format(local_run_dir)
+            # data_file = uproot.open(output_file)
+            # df = data_file["analysis"].pandas.df()
+            # data_file._context.source.close()
+            # return df

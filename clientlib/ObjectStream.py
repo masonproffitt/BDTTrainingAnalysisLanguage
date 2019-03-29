@@ -65,13 +65,6 @@ class ObjectStream:
         '''
         return ObjectStream(resultAwkwardArray(self._ast, columns))
 
-    # def AsPandasDFFromROOTFile(self):
-    #     r"""
-    #     Return a pandas df frame from the root file.
-    #     """
-
-    #     return ObjectStream(pandas_df_ast.CreatePandasDF(self._ast))
-
     def value(self):
         r"""
         Trigger the evaluation of the AST.

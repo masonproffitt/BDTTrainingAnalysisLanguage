@@ -9,7 +9,7 @@ class resultTTree(ast.AST):
 
     def __init__(self, source, column_names):
         r'''
-        Initialize the CreateTTree AST node.
+        Initialize the resultTTree AST node.
 
         source - The iterator containing the data that is to be written out to a TTree.
         column_names - Names of each column to be written out. Each is a string.

@@ -396,10 +396,6 @@ class query_ast_visitor(ast.NodeVisitor):
         node.rep = cpp_expression('"{0}"'.format(node.s), self._gc.current_scope())
         self._result = node.rep
 
-    def visit_CreatePandasDF(self, node):
-        'Generate the code to convert to a pandas DF'
-        self.generic_visit(node)
-
     def visit_resultTTree(self, node):
         '''This AST means we are taking an iterable and converting it to a ROOT file.
         '''

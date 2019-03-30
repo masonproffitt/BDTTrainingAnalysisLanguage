@@ -288,6 +288,22 @@ class query_ast_visitor(ast.NodeVisitor):
             raise BaseException("Do not know how to call '{0}'".format(ast.dump(call_node.func, annotate_fields=False)))
         call_node.rep = self._result
 
+    def visit_Subscript(self, node):
+        'Index into an array. Check types, as tuple indexing can be very bad for us'
+        v = self.get_rep(node.value)
+        if v.cpp_type() != 'std::vector<double>':
+            raise BaseException("Do not know how to take the index of type '{0}'".format(v.cpp_type()))
+        index = self.get_rep(node.slice)
+        # TODO: extract the type from the expression
+        node.rep = cpp_expression("{0}[{1}]".format(v.as_cpp(), index.as_cpp()), self._gc.current_scope(), cpp_type="double")
+        self._result = node.rep
+
+    def visit_Index(self, node):
+        'We can only do single items, we cannot do slices yet'
+        v = self.get_rep(node.value)
+        node.rep = v
+        self._result = node
+
     def visit_Tuple(self, tuple_node):
         r'''
         Process a tuple. We visit each component of it, and build up a representation from each result.

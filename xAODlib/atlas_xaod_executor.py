@@ -295,7 +295,7 @@ class query_ast_visitor(ast.NodeVisitor):
             raise BaseException("Do not know how to take the index of type '{0}'".format(v.cpp_type()))
         index = self.get_rep(node.slice)
         # TODO: extract the type from the expression
-        node.rep = cpp_expression("{0}[{1}]".format(v.as_cpp(), index.as_cpp()), self._gc.current_scope(), cpp_type="double")
+        node.rep = cpp_expression("{0}.at({1})".format(v.as_cpp(), index.as_cpp()), self._gc.current_scope(), cpp_type="double")
         self._result = node.rep
 
     def visit_Index(self, node):

@@ -21,6 +21,11 @@ class track_columns:
         'Return the tuple string'
         return '({0})'.format(','.join(self.col_expr))
 
+def add_sampling_layer(name, index, tc):
+    'Add a column accessing the energy sampling guy'
+    # TODO: Add sum on here so we can make this a fraction
+    tc.add_col(name, 'ji[1].getAttributeVectorFloat("EnergyPerSampling")[{0}]/1000.0'.format(index))
+
 
 # Use the following datasets as input
 f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
@@ -42,11 +47,43 @@ tc.add_col('JetEta', 'ji[1].eta()')
 
 # The basic moments for the layer weights.
 # TODO: Add the get attribute that comes back as a vector of double.
+add_sampling_layer ('EMM_BL0', 0, tc)
+add_sampling_layer ('EMM_BL1', 1, tc)
+add_sampling_layer ('EMM_BL2', 2, tc)
+add_sampling_layer ('EMM_BL3', 3, tc)
+
+add_sampling_layer ('EMM_EL0', 4, tc)
+add_sampling_layer ('EMM_EL1', 5, tc)
+add_sampling_layer ('EMM_EL2', 6, tc)
+add_sampling_layer ('EMM_EL3', 7, tc)
+
+add_sampling_layer ('EH_EL0', 8, tc)
+add_sampling_layer ('EH_EL1', 9, tc)
+add_sampling_layer ('EH_EL2', 10, tc)
+add_sampling_layer ('EH_EL3', 11, tc)
+
+add_sampling_layer ('EH_CBL0', 12, tc)
+add_sampling_layer ('EH_CBL1', 13, tc)
+add_sampling_layer ('EH_CVL2', 14, tc)
+
+add_sampling_layer ('EH_TGL0', 15, tc)
+add_sampling_layer ('EH_TGL1', 16, tc)
+add_sampling_layer ('EH_TGL2', 17, tc)
+
+add_sampling_layer ('EH_EBL0', 18, tc)
+add_sampling_layer ('EH_EBL1', 19, tc)
+add_sampling_layer ('EH_EBL2', 20, tc)
+
+add_sampling_layer ('FC_L0', 21, tc)
+add_sampling_layer ('FC_L1', 22, tc)
+add_sampling_layer ('FC_L2', 23, tc)
 
 # The MC information for the particle
 # TODO: Add the mc information
 
 # Most of the mlp stuff is going to come from a bunch of jet moments.
+# TODO: add the cut on eta
+# TODO: Add cut on clean LLP jet
 tuple_data = jet_info \
     .Select('lambda ji: ' + tc.gen_tuple()) \
     .Where('lambda jc: jc[{0}] > 40.0'.format(tc.col_index('JetPt')))

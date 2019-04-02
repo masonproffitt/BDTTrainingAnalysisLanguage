@@ -1,7 +1,6 @@
 # A stream of some object
 import clientlib.query_ast as query_ast
-import clientlib.query_TTree as query_TTree
-import clientlib.pandas_df_ast as pandas_df_ast
+from clientlib.query_result_asts import resultTTree, resultPandasDF, resultAwkwardArray
 from clientlib.find_LINQ_operators import parse_ast
 import ast
 
@@ -47,7 +46,7 @@ class ObjectStream:
 
         # We do this by first generating a simple ROOT file, then loading it into a dataframe with
         # uproot.
-        return self.AsROOTFile(columns=columns).AsPandasDFFromROOTFile()
+        return ObjectStream(resultPandasDF(self._ast, columns))
 
     def AsROOTFile(self, columns=[]):
         r"""
@@ -55,18 +54,15 @@ class ObjectStream:
 
         columns - Array of names of the columns
         """
-        # Fix up the number of columns
-        if len(columns) == 0:
-            columns = ['col0']
+        return ObjectStream(resultTTree(self._ast, columns))
 
-        return ObjectStream(query_TTree.CreateTTreeFile(self._ast, columns))
+    def AsAwkwardArray(self, columns=[]):
+        r'''
+        Terminal - take the AST and return a root file.
 
-    def AsPandasDFFromROOTFile(self):
-        r"""
-        Return a pandas df frame from the root file.
-        """
-
-        return ObjectStream(pandas_df_ast.CreatePandasDF(self._ast))
+        columns - Array of names of the columns
+        '''
+        return ObjectStream(resultAwkwardArray(self._ast, columns))
 
     def value(self):
         r"""

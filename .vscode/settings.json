@@ -12,6 +12,7 @@
         "cpplib",
         "eljob",
         "elts",
+        "getcwd",
         "gordo",
         "iftest",
         "isdir",

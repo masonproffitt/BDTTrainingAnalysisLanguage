@@ -1,6 +1,26 @@
 # Hold onto the generated code
 from xAODlib.statement import block
 
+def scope_is_deeper(s1, s2):
+    '''Return true if scope `s2` is deeper than scope `s`.
+    
+    s1 - returned from the `current_scope()` on `generated_code`.
+    s2 - a second scope from the same function.
+
+    returns:
+
+    is_deeper - true if scope s2 has more levels than s1.
+    throws if for the frames that s1 and s2 have, if they do not match.
+
+    '''
+    stack_1 = s1[0]
+    stack_2 = s2[0]
+
+    are_same = all(a1 == a2 for a1,a2 in zip(stack_1, stack_2))
+    if not are_same:
+        raise BaseException("Unable to determine relative scope differences unless the initial part of the scope is the same!")
+
+    return len(stack_1) < len(stack_2)
 
 class generated_code:
     def __init__(self):

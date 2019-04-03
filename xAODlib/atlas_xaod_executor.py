@@ -1,5 +1,5 @@
 # Executor and code for the ATLAS xAOD input files
-from xAODlib.generated_code import generated_code
+from xAODlib.generated_code import generated_code, scope_is_deeper
 import xAODlib.statement as statement
 from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
 import xAODlib.AtlasEventStream
@@ -441,7 +441,17 @@ class query_ast_visitor(ast.NodeVisitor):
         # Make sure that it happens at the proper scope, where what we are after is defined!
         s_orig = self._gc.current_scope()
         for e in zip(v_rep, var_names):
-            self._gc.set_scope(e[0].scope())
+            # Set the scope. Normally we want to do it where the variable was calculated
+            # (think of cases when you have to calculate something with a `push_back`),
+            # but if the variable was already calculated, we want to make sure we are at least
+            # in the same scope as the tree fill.
+            if scope_is_deeper(e[0].scope(), v_rep_not_norm.scope()):
+                self._gc.set_scope(v_rep_not_norm.scope())
+            else:
+                self._gc.set_scope(e[0].scope())
+
+            # If the variable is something we are iterating over, then fill it, otherwise,
+            # just set it.
             if e[0].is_iterable:
                 self._gc.add_statement(statement.push_back(e[1][1], e[0]))
             else:

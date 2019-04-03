@@ -6,11 +6,13 @@ import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
 from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple
+import xAODlib.result_handlers as rh
+import clientlib.query_result_asts as query_result_asts
+
 from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
 from clientlib.aggregate_shortcuts import aggregate_node_transformer
-import xAODlib.result_handlers as rh
-import clientlib.query_result_asts as query_result_asts
+from cpplib.cpp_functions import find_known_functions, function_ast
 
 import ast
 import tempfile
@@ -267,11 +269,20 @@ class query_ast_visitor(ast.NodeVisitor):
         c_stub = calling_against.name() + ("->" if calling_against.is_pointer() else "->")
         self._result = cpp_expression(c_stub + function_name + "()", calling_against.scope())
 
-    def visit_Name(self, name_node):
-        'Visiting a name - which should represent something'
-        id = self.resolve_id(name_node.id)
-        if isinstance(id, ast.AST):
-            name_node.rep = self.get_rep(id)
+    def visit_function_ast(self, call_node):
+        'Drop-in replacement for a function'
+        # Get the arguments
+        cpp_func = call_node.func
+        arg_reps = [self.get_rep(a) for a in call_node.args]
+
+        # Code up a call
+        r = cpp_expression('{0}({1})'.format(cpp_func.cpp_name, ','.join(a.as_cpp() for a in arg_reps)), self._gc.current_scope(), cpp_type = cpp_func.cpp_return_type)
+
+        # Include files and return the resulting expression
+        for i in cpp_func.include_files:
+            self._gc.add_include(i)
+        call_node.rep = r
+        return r
 
     def visit_Call(self, call_node):
         r'''
@@ -284,9 +295,17 @@ class query_ast_visitor(ast.NodeVisitor):
             self.visit_Call_Member(call_node)
         elif type(call_node.func) is cpp_ast.CPPCodeValue:
             self._result = cpp_ast.process_ast_node(self, self._gc, self._result, call_node)
+        elif type(call_node.func) is function_ast:
+            self._result = self.visit_function_ast(call_node)
         else:
             raise BaseException("Do not know how to call '{0}'".format(ast.dump(call_node.func, annotate_fields=False)))
         call_node.rep = self._result
+
+    def visit_Name(self, name_node):
+        'Visiting a name - which should represent something'
+        id = self.resolve_id(name_node.id)
+        if isinstance(id, ast.AST):
+            name_node.rep = self.get_rep(id)
 
     def visit_Subscript(self, node):
         'Index into an array. Check types, as tuple indexing can be very bad for us'
@@ -383,7 +402,7 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.declare_variable (result)
 
         # How we check and short-circuit depends on if we are doing and or or.
-        check_expr = result.as_cpp() if node.op == ast.And else '!{0}'.format(result.as_cpp())
+        check_expr = result.as_cpp() if type(node.op) == ast.And else '!{0}'.format(result.as_cpp())
         check = cpp_expression(check_expr, self._gc.current_scope(), cpp_type='bool')
 
         first = True
@@ -598,6 +617,7 @@ class atlas_xaod_executor:
         ast = aggregate_node_transformer().visit(ast)
         ast = simplify_chained_calls().visit(ast)
         ast = remove_tuple_subscripts().visit(ast)
+        ast = find_known_functions().visit(ast)
 
         # Any C++ custom code needs to be threaded into the ast
         ast = cpp_ast.cpp_ast_finder().visit(ast)

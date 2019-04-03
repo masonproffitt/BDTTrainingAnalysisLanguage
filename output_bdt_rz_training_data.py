@@ -41,12 +41,10 @@ tc = track_columns()
 tc.add_col('RunNumber', 'ji[0].runNumber()')
 tc.add_col('EventNumber', 'ji[0].eventNumber()')
 
-# TODO: jetPt is being placed at the wrong scope.
 tc.add_col('JetPt', 'ji[1].pt()/1000.0')
 tc.add_col('JetEta', 'ji[1].eta()')
 
 # The basic moments for the layer weights.
-# TODO: Add the get attribute that comes back as a vector of double.
 add_sampling_layer ('EMM_BL0', 0, tc)
 add_sampling_layer ('EMM_BL1', 1, tc)
 add_sampling_layer ('EMM_BL2', 2, tc)
@@ -82,11 +80,10 @@ add_sampling_layer ('FC_L2', 23, tc)
 # TODO: Add the mc information
 
 # Most of the mlp stuff is going to come from a bunch of jet moments.
-# TODO: add the cut on eta
 # TODO: Add cut on clean LLP jet
 tuple_data = jet_info \
     .Select('lambda ji: ' + tc.gen_tuple()) \
-    .Where('lambda jc: jc[{0}] > 40.0'.format(tc.col_index('JetPt')))
+    .Where('lambda jc: (jc[{0}] > 40.0) and (abs(jc[{1}]) < 2.5)'.format(tc.col_index('JetPt'), tc.col_index('JetEta')))
 
 # Put it all together and turn it into a set of ROOT files (for now):
 ds = tuple_data \

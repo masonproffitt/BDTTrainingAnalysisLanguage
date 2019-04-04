@@ -23,8 +23,7 @@ class track_columns:
 
 def add_sampling_layer(name, index, tc):
     'Add a column accessing the energy sampling guy'
-    # TODO: Add sum on here so we can make this a fraction
-    tc.add_col(name, 'ji[1].getAttributeVectorFloat("EnergyPerSampling")[{0}]/1000.0'.format(index))
+    tc.add_col(name, 'ji[1].getAttributeVectorFloat("EnergyPerSampling")[{0}]/(ji[1].getAttributeVectorFloat("EnergyPerSampling").Sum())'.format(index))
 
 
 # Use the following datasets as input

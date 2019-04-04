@@ -96,7 +96,8 @@ class cpp_expression(cpp_rep_base):
 
 class cpp_collection(cpp_variable):
     r'''
-    The representation for a collection. Something that can be iterated over.
+    The representation for a collection. Something that can be iterated over using
+    the standard for loop code.
     '''
 
     def __init__(self, name, scope, is_pointer=False, cpp_type=None):

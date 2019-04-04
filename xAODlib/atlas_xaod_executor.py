@@ -193,7 +193,7 @@ class query_ast_visitor(ast.NodeVisitor):
                 init_lambda = node.args[0]
             else:
                 init_val = node.args[0]
-                use_first_element_desperately = False
+                use_first_element_separately = False
         else:
             raise BaseException('Aggregate can have only one or two arguments')
 
@@ -203,7 +203,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # We have to initialized the variable to some value, and it depends on how the user
         # is trying to initialize things - first iteration or with a value.
-        if use_first_element_desperately:
+        if use_first_element_separately:
             is_first_iter = cpp_variable(unique_name("is_first"), self._gc.current_scope(), cpp_type="bool")
             self._gc.declare_variable(is_first_iter)
             self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("true", self._gc.current_scope())))

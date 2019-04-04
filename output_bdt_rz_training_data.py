@@ -1,5 +1,6 @@
 # Write out the training ntuple for doing the r (xy) and z training
 from clientlib.DataSets import EventDataSet
+from cpplib.math_utils import DeltaR
 
 class track_columns:
     def __init__(self):
@@ -30,10 +31,12 @@ def add_sampling_layer(name, index, tc):
 f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
 events = f.AsATLASEvents()
 
+# Track basic event info, jets, and LLP particles.
 event_info = events \
-    .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'))")
+    .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.TruthParticles('TruthParticles').Where(lambda tp1: tp1.pdgId() == 35))")
+# For the jet, grab the event info and the first LLP that is within 0.4 of the guy.
 jet_info = event_info \
-    .SelectMany('lambda ev: ev[1].Select(lambda j1: (ev[0], j1))')
+    .SelectMany('lambda ev: ev[1].Select(lambda j1: (ev[0], j1, ev[1].Where(lambda tp2: DeltaR(tp2.eta(), tp2.phi(), j1.eta(), j1.phi()) < 0.4)).Take(1))')
 
 # Build us a list of columns
 tc = track_columns()
@@ -42,6 +45,12 @@ tc.add_col('EventNumber', 'ji[0].eventNumber()')
 
 tc.add_col('JetPt', 'ji[1].pt()/1000.0')
 tc.add_col('JetEta', 'ji[1].eta()')
+
+# If it is signal, we can add a bunch of extra info
+tc.add_col('IsLLP', 'ji[2].Count() > 0')
+tc.add_col('Lx', '0 if ji[2].Count() == 0 else abs(ji[2].First().prodVtx().x()-ji[2].First().prodVtx().y())')
+tc.add_col('Ly', '0 if ji[2].Count() == 0 else abs(ji[2].First().prodVtx().y()-ji[2].First().prodVtx().y())')
+tc.add_col('Lz', '0 if ji[2].Count() == 0 else abs(ji[2].First().prodVtx().z()-ji[2].First().prodVtx().z())')
 
 # The basic moments for the layer weights.
 add_sampling_layer ('EMM_BL0', 0, tc)

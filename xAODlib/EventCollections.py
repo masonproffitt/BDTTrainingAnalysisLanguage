@@ -22,8 +22,13 @@ collections = [
         'function_name': "EventInfo",
         'include_files': ['xAODEventInfo/EventInfo.h'],
         'container_type': 'const xAOD::EventInfo*',
-        'is_collection': False
-    }
+        'is_collection': False,
+    },
+    {
+        'function_name': "TruthParticles",
+        'include_files': ['xAODTruth/TruthParticleContainer.h'],
+        'container_type': 'const xAOD::TruthParticleContainer*',
+    },
 ]
 
 def getCollection(info, call_node):

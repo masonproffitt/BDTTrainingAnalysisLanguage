@@ -46,15 +46,28 @@ class cpp_variable(cpp_rep_base):
     The representation for a simple variable.
     '''
 
-    def __init__(self, name, scope, is_pointer=False, cpp_type = None):
+    def __init__(self, name, scope, is_pointer=False, cpp_type = None, initial_value = None):
+        '''
+        Craete a new variable
+
+        name - C++ name of the variable
+        scope - Scope at which this variable is being defined
+        is_pointer - True if we need to use -> to dereference it
+        cpp_type - tye type of the variable, or implied (somehow)
+        inital_value - if set, then it will be used to declare the variable and initially set it.
+        '''
         cpp_rep_base.__init__(self, scope)
         self._cpp_name = name
         self._is_pointer = is_pointer
         self._cpp_type = cpp_type
         self._ast = None
+        self._initial_value = initial_value
 
     def name(self):
         return self._cpp_name
+
+    def initial_value(self):
+        return self._initial_value
 
     def as_cpp(self):
         return self._cpp_name

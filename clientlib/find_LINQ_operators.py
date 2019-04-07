@@ -48,6 +48,9 @@ class replace_LINQ_operators(ast.NodeTransformer):
                 source = self.visit(node.func.value)
                 filter = self.visit(node.args[0])
                 return query_ast.Where(source, filter)
+            elif func_name == "First":
+                source = self.visit(node.func.value)
+                return query_ast.First(source)
             else:
                 return self.generic_visit(node)
         return node

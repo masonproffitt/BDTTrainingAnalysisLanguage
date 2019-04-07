@@ -9,7 +9,8 @@
 #TODO: Remove all Module references to lambdas that are stored in the AST.
 import ast
 
-
+###############################
+# First, the sequences
 class SelectMany(ast.AST):
     r"""
     AST node for SelectMany. A selection function picks out
@@ -66,3 +67,19 @@ class Where(ast.AST):
         self.source = source
         self.filter = filter_lambda
         self._fields = ('source', 'filter')
+
+# The terminals
+class First(ast.AST):
+    r'''
+    AST Node for taking the first element of a sequence. Returns the object for use, and also pops the sequence
+    up one level.
+    '''
+
+    def __init__ (self, source):
+        r'''
+        Initialize the First AST node.
+
+        source - AST of the source sequence.
+        '''
+        self.source = source
+        self._fields= ('source',)

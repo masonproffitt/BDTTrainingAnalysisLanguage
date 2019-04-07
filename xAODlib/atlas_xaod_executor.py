@@ -21,6 +21,7 @@ import os
 import sys
 from urllib.parse import urlparse
 import jinja2
+from copy import copy
 
 # Convert between Python comparisons and C++.
 # TODO: Fill out all possible ones
@@ -560,6 +561,32 @@ class query_ast_visitor(ast.NodeVisitor):
         node.rep = loop_var
         self._result = loop_var
 
+    def visit_First(self, node):
+        'We are in a sequence. Take the first element of the sequence and use that for future things.'
+
+        # Make sure we are in a loop.
+        s_rep = self.get_rep(node.source)
+        loop_var = self.assure_in_loop(s_rep)
+
+        # Next, mark an external scope edge with a variable that will track when we hit first.
+        # To do this, we have to go up to the loop we are currently looking at.
+        # TODO: Scope needs some methods so we aren't using magic numbers like [0] and [1].
+        is_first = cpp_variable(unique_name('is_first'), s_rep.scope(), cpp_type='bool')
+        var_book_statement = s_rep.scope()[0][-1]
+        var_book_statement.declare_variable(is_first)
+        var_book_statement.add_statement(statement.set_var(is_first, cpp_expression('true', var_book_statement, cpp_type='bool')))
+
+        # Now, as long as is_first is true, we can execute things inside this statement.
+        s = statement.iftest(is_first)
+        self._gc.add_statement(s)
+        self._gc.add_statement(statement.set_var(is_first, cpp_expression('false', self._gc.current_scope(), cpp_type='bool')))
+
+        # Finally, the result of first is the object that we are looping over.
+        new_loop_var = copy(loop_var)
+        new_loop_var.is_iterable = False
+
+        node.rep = new_loop_var
+        self._result = new_loop_var
 
 
 class cpp_source_emitter:

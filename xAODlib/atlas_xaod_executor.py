@@ -571,10 +571,9 @@ class query_ast_visitor(ast.NodeVisitor):
         # Next, mark an external scope edge with a variable that will track when we hit first.
         # To do this, we have to go up to the loop we are currently looking at.
         # TODO: Scope needs some methods so we aren't using magic numbers like [0] and [1].
-        is_first = cpp_variable(unique_name('is_first'), s_rep.scope(), cpp_type='bool')
+        is_first = cpp_variable(unique_name('is_first'), s_rep.scope(), cpp_type='bool', initial_value='true')
         var_book_statement = s_rep.scope()[0][-1]
         var_book_statement.declare_variable(is_first)
-        var_book_statement.add_statement(statement.set_var(is_first, cpp_expression('true', var_book_statement, cpp_type='bool')))
 
         # Now, as long as is_first is true, we can execute things inside this statement.
         s = statement.iftest(is_first)
@@ -584,6 +583,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # Finally, the result of first is the object that we are looping over.
         new_loop_var = copy(loop_var)
         new_loop_var.is_iterable = False
+        new_loop_var.set_scope(self._gc.current_scope())
 
         node.rep = new_loop_var
         self._result = new_loop_var

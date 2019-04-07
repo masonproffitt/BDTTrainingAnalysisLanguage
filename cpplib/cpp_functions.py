@@ -29,8 +29,12 @@ class find_known_functions(ast.NodeTransformer):
         if type(node.func) is not ast.Name:
             return node
 
-        fnc = eval(node.func.id)
-        fnc_name = '{0}.{1}'.format(fnc.__module__, node.func.id)
+        try:
+            fnc = eval(node.func.id)
+            fnc_name = '{0}.{1}'.format(fnc.__module__, node.func.id)
+        except NameError:
+            fnc_name = node.func.id
+    
         if fnc_name not in functions_to_replace:
             return node
 

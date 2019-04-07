@@ -26,6 +26,7 @@ class find_known_functions(ast.NodeTransformer):
         self.generic_visit(node)
 
         # See if we are candidate for replacement
+        # Get a fully qualified name as possible.
         if type(node.func) is not ast.Name:
             return node
 

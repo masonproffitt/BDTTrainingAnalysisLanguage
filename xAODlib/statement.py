@@ -20,7 +20,8 @@ class block:
         'Render the block of code'
         e.add_line("{")
         for v in self._variables:
-            e.add_line("{0} {1};".format(v.cpp_type(), v.name()))
+            init_value = "" if not v.initial_value() else " ({0})".format(v.initial_value())
+            e.add_line("{0} {1}{2};".format(v.cpp_type(), v.name(), init_value))
         for s in self._statements:
             s.emit(e)
         e.add_line("}")

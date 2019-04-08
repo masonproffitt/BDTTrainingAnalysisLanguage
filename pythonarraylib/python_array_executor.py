@@ -80,6 +80,8 @@ class python_array_ast_visitor(ast.NodeVisitor):
                 agg_lambda = node.args[1]
         else:
             raise BaseException('not really sure how this kind of aggregate works...')
+        #node.rep = 'for ' + ' in ' + self.get_rep(node.func.value) + ':\n'
+        #node.rep += '    '
 
     def visit_Call_Member(self, call_node):
         'Method call on an object'
@@ -122,6 +124,9 @@ class python_array_ast_visitor(ast.NodeVisitor):
         else:
             raise BaseException("Do not know how to call at " + type(call_node.func).__name__)
         #call_node.rep = self._result
+
+    def visit_Tuple(self, node):
+        node.rep = '(' + ''.join(self.get_rep(e) + ', ' for e in node.elts) + ')'
 
     def visit_Select(self, node):
         'Transform the iterable from one form to another'

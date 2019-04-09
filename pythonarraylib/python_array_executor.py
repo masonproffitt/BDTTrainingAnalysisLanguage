@@ -116,11 +116,14 @@ class python_array_ast_visitor(ast.NodeVisitor):
             self.visit_Compare(node)
         elif isinstance(node.func, ast.Name):
             node.rep = 'awkward.fromiter('
-            if (node.func.id == 'len') and (len(node.args) == 1):
-                node.rep += '[len(object_with_length) for object_with_length in ' + self.get_rep(node.args[0]) + ']'
-            elif (node.func.id == 'min') and (len(node.args) == 1):
+            if node.func.id == 'len' and len(node.args) == 1:
+                if isinstance(node.args[0], ast.Compare):
+                    node.rep += '[len(object_with_length.nonzero()[0]) for object_with_length in ' + self.get_rep(node.args[0]) + ']'
+                else:
+                    node.rep += '[len(object_with_length) for object_with_length in ' + self.get_rep(node.args[0]) + ']'
+            elif node.func.id == 'min' and len(node.args) == 1:
                 node.rep += '[min(iterable) for iterable in ' + self.get_rep(node.args[0]) + ']'
-            elif (node.func.id == 'max') and (len(node.args) == 1):
+            elif node.func.id == 'max' and len(node.args) == 1:
                 node.rep += '[max(iterable) for iterable in ' + self.get_rep(node.args[0]) + ']'
             else:
                 raise BaseException('unimplemented func call: ' + node.func.id)

@@ -23,8 +23,15 @@ class awkward_array_executor(python_array_executor):
         source = ast_node.source
         while hasattr(source, 'source'):
             source = source.source
-        f.write(source.rep + " = awkward.load('" + data_pathname + "')\n")
-        f.write('output_array = ' + ast_node.rep + '\n')
+        if data_pathname[-5:] == '.awkd':
+            f.write(source.rep + " = awkward.load('" + data_pathname + "')\n")
+        elif data_pathname[-5:] == '.root':
+            f.write('import uproot\n')
+            f.write("input_file = uproot.open('" + data_pathname + "')\n")
+            f.write(source.rep + " = input_file[input_file.keys()[0]].lazyarrays(namedecode='utf-8')\n")
+        else:
+            raise BaseException('unimplemented file type: ' + data_pathname)
+        f.write('output_array = awkward.fromiter(' + ast_node.rep + ')\n')
         f.write("awkward.save('output.awkd', output_array)\n")
         f.close()
         os.system('python temp.py')

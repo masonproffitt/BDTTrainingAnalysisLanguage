@@ -1,7 +1,8 @@
 from pythonarraylib.python_array_executor import python_array_ast_visitor, python_array_executor
 
-import ast
 import numpy
+
+import ast
 import os
 
 class ast_visitor(python_array_ast_visitor):
@@ -9,13 +10,8 @@ class ast_visitor(python_array_ast_visitor):
 
 class numpy_array_executor(python_array_executor):
     def evaluate(self, ast_node):
-        r"""
-        Evaluate the ast over the file that we have been asked to run over
-        """
-
-        # Visit the AST to generate the code
         qv = ast_visitor()
-        print(ast.dump(ast_node))
+        #print(ast.dump(ast_node))
         qv.visit(ast_node)
         if isinstance(self.dataset_source, str):
             data_pathname = self.dataset_source
@@ -23,6 +19,7 @@ class numpy_array_executor(python_array_executor):
             data_pathname = 'temp.npy'
             numpy.save(data_pathname, self.dataset_source)
         f = open('temp.py', 'w')
+        f.write('import awkward\n')
         f.write('import numpy\n')
         source = ast_node.source
         while hasattr(source, 'source'):

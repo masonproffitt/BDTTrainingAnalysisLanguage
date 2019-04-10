@@ -29,7 +29,7 @@ class normalize_ast(ast.NodeTransformer):
         'Generate a new argument, in a nice order'
         old_arg = self._arg_index
         self._arg_index += 1
-        return "arg_{0}".format(old_arg)
+        return "t_arg_{0}".format(old_arg)
 
     def visit_Lambda(self, node):
         'Arguments need a uniform naming'
@@ -109,6 +109,10 @@ def test_where_where():
 
 def test_where_select():
     util_process('jets.Select(lambda j: j.pt).Where(lambda p: p > 40)', 'jets.Where(lambda j: j.pt > 40).Select(lambda k: k.pt)')
+
+def test_where_first():
+    util_process('events.Select(lambda e: e.jets.First()).Select(lambda j: j.pt()).Where(lambda jp: jp>40.0)', \
+        'events.Where(lambda e: e.jets.First().pt() > 40.0).Select(lambda e1: e1.jets.First().pt())')
 
 ################
 # Testing out SelectMany

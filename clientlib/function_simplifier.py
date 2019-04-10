@@ -262,11 +262,9 @@ class simplify_chained_calls(ast.NodeTransformer):
                 # TODO: These have to be removed correctly (deal with common arg names!)
                 self._arg_dict[a_name.arg] = arg
             # Now, evaluate the expression, and then lift it.
-            expr = self.visit(call_node.func.body)
-            return expr
+            return self.visit(call_node.func.body)
         else:
-            call_node = self.generic_visit(call_node)
-        return call_node
+            return self.generic_visit(call_node)
 
     def visit_Subscript_Tuple(self, v, s):
         '''

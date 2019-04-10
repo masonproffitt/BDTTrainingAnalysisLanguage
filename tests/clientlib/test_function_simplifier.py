@@ -106,7 +106,9 @@ def test_where_always_true():
 
 def test_where_where():
     util_process('jets.Where(lambda j: j.pt>10).Where(lambda j1: j1.eta < 4.0)', 'jets.Where(lambda j: (j.pt>10) and (j.eta < 4.0))')
-test_where_where()
+
+def test_where_select():
+    util_process('jets.Select(lambda j: j.pt).Where(lambda p: p > 40)', 'jets.Where(lambda j: j.pt > 40).Select(lambda k: k.pt)')
 
 ################
 # Testing out SelectMany

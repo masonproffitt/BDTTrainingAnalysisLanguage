@@ -1,7 +1,8 @@
 # Various node visitors to clean up nested function calls of various types.
-import ast
 from clientlib.query_ast import Select, Where, SelectMany, First
 from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build, lambda_is_identity, lambda_test, lambda_is_true
+import copy
+import ast
 
 argument_var_counter = 0
 def arg_name():
@@ -32,7 +33,7 @@ def convolute(ast_g, ast_f):
     call_g_lambda = ast.Lambda(args=args, body=call_g)
 
     # Build a new call to nest the functions
-    return lambda_wrap(call_g_lambda)
+    return call_g_lambda
 
 class simplify_chained_calls(ast.NodeTransformer):
     '''
@@ -321,3 +322,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         if name_node.id in self._arg_dict:
             return self._arg_dict[name_node.id]
         return name_node
+
+    def visit_Attribute(self, node):
+        'Make sure to make a new version of the Attribute so it does not get reused'
+        return ast.Attribute(value=self.visit(node.value), attr=node.attr, ctx=ast.Load())

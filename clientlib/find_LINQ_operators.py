@@ -1,7 +1,7 @@
 # In an AST replace LINQ operations with the proper
 # AST entries.
 import clientlib.query_ast as query_ast
-from clientlib.ast_util import lambda_wrap
+from clientlib.ast_util import lambda_unwrap
 import ast
 
 
@@ -18,7 +18,7 @@ def parse_ast (ast_text):
          to function call AST's.
     '''
     a = ast.parse(ast_text)
-    return replace_LINQ_operators().visit(a)
+    return lambda_unwrap(replace_LINQ_operators().visit(a))
 
 class replace_LINQ_operators(ast.NodeTransformer):
     r'''
@@ -39,11 +39,11 @@ class replace_LINQ_operators(ast.NodeTransformer):
             if func_name == "Select":
                 source = self.visit(node.func.value)
                 selection = self.visit(node.args[0])
-                return query_ast.Select(source, lambda_wrap(selection))
+                return query_ast.Select(source, selection)
             elif func_name == "SelectMany":
                 source = self.visit(node.func.value)
                 selection = self.visit(node.args[0])
-                return query_ast.SelectMany(source, lambda_wrap(selection))
+                return query_ast.SelectMany(source, selection)
             elif func_name == "Where":
                 source = self.visit(node.func.value)
                 filter = self.visit(node.args[0])

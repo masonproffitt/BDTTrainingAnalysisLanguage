@@ -1,7 +1,7 @@
 # Various node visitors to clean up nested function calls of various types.
 import ast
-from clientlib.query_ast import Select, Where, SelectMany
-from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build
+from clientlib.query_ast import Select, Where, SelectMany, First
+from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build, lambda_is_identity
 
 argument_var_counter = 0
 def arg_name():
@@ -59,7 +59,7 @@ class simplify_chained_calls(ast.NodeTransformer):
 
         # Convolute the two functions
         # TODO: should this be generic of just visit?
-        new_selection = self.generic_visit(convolute(func_g, func_f))
+        new_selection = self.visit(convolute(func_g, func_f))
 
         # And return the parent select with the new selection function
         return Select(parent.source, new_selection)
@@ -105,7 +105,11 @@ class simplify_chained_calls(ast.NodeTransformer):
         elif type(parent_select) is SelectMany:
             return self.visit_Select_of_SelectMany(parent_select, node.selection)
         else:
-            return Select(parent_select, self.visit(node.selection))
+            selection = self.visit(node.selection)
+            if lambda_is_identity(selection):
+                return parent_select
+            else:
+                return Select(parent_select, self.visit(node.selection))
 
     def visit_SelectMany_of_Select(self, parent, selection):
         '''
@@ -260,6 +264,55 @@ class simplify_chained_calls(ast.NodeTransformer):
         else:
             call_node = self.generic_visit(call_node)
         return call_node
+
+    def visit_Subscript_Tuple(self, v, s):
+        '''
+        (t1, t2, t3...)[1] => t2
+
+        Only works if index is a number
+        '''
+        if type(s.value) is not ast.Num:
+            return ast.Subscript(v, s, ast.Load())
+        n = s.value.n
+        if n >= len(v.elts):
+            raise BaseException("Attempt to access the {0}th element of a tuple only {1} values long.".format(n, len(v.value.elts)))
+
+        return v.elts[n]
+
+    def visit_Subscript_Of_First(self, first, s):
+        '''
+        Convert a seq.First()[0]
+        ==>
+        seq.Select(l: l[0]).First()
+
+        Other work will do the conversion as needed.
+        '''
+        source = first.source
+
+        # Build the select that starts from the source and does the slice.
+        a = arg_name()
+        select = Select(source, lambda_build(a, ast.Subscript(ast.Name(a, ast.Load()), s, ast.Load())))
+
+        return self.visit(First(select))
+
+    def visit_Subscript(self, node):
+        r'''
+        Simple Reduction
+        (t1, t2, t3...)[1] => t2
+
+        Move [] past a First()
+        seq.First()[0] => seq.Select(j: j[0]).First()
+        '''
+        v = self.visit(node.value)
+        s = self.visit(node.slice)
+        if type(v) is ast.Tuple:
+            return self.visit_Subscript_Tuple(v, s)
+
+        if type(v) is First:
+            return self.visit_Subscript_Of_First(v, s)
+
+        # Nothing interesting, so do the normal thing several levels down.
+        return ast.Subscript(v, s, ctx=ast.Load())
 
     def visit_Name(self, name_node):
         'Do lookup and see if we should translate or not.'

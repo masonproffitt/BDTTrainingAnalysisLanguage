@@ -159,9 +159,19 @@ def lambda_assure(east, nargs=None):
 
     return east
 
-
-def lambda_test(east, nargs):
+def lambda_is_identity(l):
+    'Return true if this is a lambda with 1 argument that returns the argument'
+    if not lambda_test(l, 1):
+        return False
+    
+    b = lambda_unwrap(l)
+    if type(b.body) is not ast.Name:
+        return False
+    
+    a = b.args.args[0].arg
+    return a == b.body.id
+    
+def lambda_test(l, nargs):
     r''' Test arguments
-    TODO: Either fill this in or eliminate it.
     '''
-    return True
+    return len(lambda_unwrap(l).args.args) == nargs

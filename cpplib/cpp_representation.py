@@ -13,11 +13,15 @@ class cpp_rep_base:
     This is an abstract class for the most part. Do not override things that aren't needed - that way the system will
     know when the user tries to do something that they shouldn't have.
     '''
-    def __init__(self, scope):
+    def __init__(self, scope, is_pointer = False):
         # Set to true when we represent an item in an interable type.
         self.is_iterable = False
         self._ast = None
         self._scope = scope
+        self._is_pointer = is_pointer
+
+    def is_pointer(self):
+        return self._is_pointer
 
     def as_cpp(self):
         'Return the C++ code to represent whatever we are holding'
@@ -56,9 +60,8 @@ class cpp_variable(cpp_rep_base):
         cpp_type - tye type of the variable, or implied (somehow)
         inital_value - if set, then it will be used to declare the variable and initially set it.
         '''
-        cpp_rep_base.__init__(self, scope)
+        cpp_rep_base.__init__(self, scope, is_pointer=is_pointer)
         self._cpp_name = name
-        self._is_pointer = is_pointer
         self._cpp_type = cpp_type
         self._ast = None
         self._initial_value = initial_value
@@ -71,9 +74,6 @@ class cpp_variable(cpp_rep_base):
 
     def as_cpp(self):
         return self._cpp_name
-
-    def is_pointer(self):
-        return self._is_pointer
 
     def cpp_type(self):
         return self._cpp_type
@@ -99,8 +99,8 @@ class cpp_expression(cpp_rep_base):
     Represents a small bit of C++ code that is an expression. For example "a+b". It does not hold full
     statements.
     '''
-    def __init__(self, expr, scope, cpp_type=None):
-        cpp_rep_base.__init__(self, scope)
+    def __init__(self, expr, scope, cpp_type=None, is_pointer = False):
+        cpp_rep_base.__init__(self, scope, is_pointer=False)
         self._expr = expr
         self._cpp_type = cpp_type
 

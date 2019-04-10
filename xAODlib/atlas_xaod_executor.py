@@ -159,6 +159,8 @@ class query_ast_visitor(ast.NodeVisitor):
             return collection
 
         # Nope - can we iterate on it (might crash due to user error)
+        if not hasattr(collection, "loop_over_collection"):
+            raise BaseException('Do not know how to loop over the expression "{0}" (with type info: {1}).'.format(collection.as_cpp(), collection.cpp_type()))
         return collection.loop_over_collection(self._gc)
 
 
@@ -267,7 +269,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # We support member calls that directly translate only. Here, for example, this is only for
         # obj.pt() or similar. The translation is direct.
-        c_stub = calling_against.name() + ("->" if calling_against.is_pointer() else "->")
+        c_stub = calling_against.as_cpp() + ("->" if calling_against.is_pointer() else ".")
         self._result = cpp_expression(c_stub + function_name + "()", calling_against.scope())
 
     def visit_function_ast(self, call_node):

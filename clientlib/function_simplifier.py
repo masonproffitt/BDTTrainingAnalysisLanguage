@@ -1,7 +1,7 @@
 # Various node visitors to clean up nested function calls of various types.
 import ast
 from clientlib.query_ast import Select, Where, SelectMany, First
-from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build, lambda_is_identity
+from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build, lambda_is_identity, lambda_test, lambda_is_true
 
 argument_var_counter = 0
 def arg_name():
@@ -16,14 +16,12 @@ def convolute(ast_g, ast_f):
     #TODO: fix up the ast.Calls to use lambda_call if possible
 
     # Sanity checks. For example, g can have only one input argument (e.g. f's result)
-    if (type(ast_g.body[0]) is not ast.Expr) or (type(ast_f.body[0]) is not ast.Expr):
-        raise BaseException("Only lambdas in Selects!")
-    if (type(ast_g.body[0].value) is not ast.Lambda) or (type(ast_f.body[0].value) is not ast.Lambda):
+    if (not lambda_test(ast_g)) or (not lambda_test(ast_f)):
         raise BaseException("Only lambdas in Selects!")
     
     # Combine the lambdas into a single call by calling g with f as an argument
-    l_g = ast_g.body[0].value
-    l_f = ast_f.body[0].value
+    l_g = lambda_unwrap(ast_g)
+    l_f = lambda_unwrap(ast_f)
 
     x = arg_name()
     f_arg = ast.Name(x, ast.Load())
@@ -181,7 +179,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         func_g = filter
 
         arg = arg_name()
-        return self.visit(Where(parent.source, lambda_build(arg, ast.BoolOp(ast.And, [lambda_call(arg, func_f), lambda_call(arg, func_g)]))))
+        return self.visit(Where(parent.source, lambda_build(arg, ast.BoolOp(ast.And(), [lambda_call(arg, func_f), lambda_call(arg, func_g)]))))
 
     def visit_Where_of_Select(self, parent, filter):
         '''
@@ -246,7 +244,11 @@ class simplify_chained_calls(ast.NodeTransformer):
         elif type(parent_where) is SelectMany:
             return self.visit_Where_of_SelectMany(parent_where, node.filter)
         else:
-            return Where(parent_where, self.visit(node.filter))
+            f = self.visit(node.filter)
+            if lambda_is_true(f):
+                return parent_where
+            else:
+                return Where(parent_where, f)
     
     def visit_Call(self, call_node):
         '''We are looking for cases where an argument is another function or expression.

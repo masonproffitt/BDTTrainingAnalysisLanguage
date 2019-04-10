@@ -46,13 +46,14 @@ class normalize_ast(ast.NodeTransformer):
         args = [ast.arg(arg=m[1]) for m in a_mapping]
         return ast.Lambda(args=args, body=body)
 
-    def visit_Name(self, node):
-        id = node.id
+    def lookup_name(self, name):
         for frames in reversed(self._arg_transformer):
-            if id in frames:
-                return frames[id]
-        return id
+            if name in frames:
+                return frames[name]
+        return name
 
+    def visit_Name(self, node):
+        return self.lookup_name(node.id)
 
 def util_process(ast_in, ast_out):
     'Make sure ast in is the same as out after running through - this is a utility routine for the harness'
@@ -94,6 +95,18 @@ def test_select_select_convolution():
 
 def test_select_identity():
     util_process('jets.Select(lambda j: j)', 'jets')
+
+def test_where_simple():
+    util_process('jets.Where(lambda j: j.pt>10)', 'jets.Where(lambda j: j.pt>10)')
+
+################
+# Test out Where
+def test_where_always_true():
+    util_process('jets.Where(lambda j: True)', 'jets')
+
+def test_where_where():
+    util_process('jets.Where(lambda j: j.pt>10).Where(lambda j1: j1.eta < 4.0)', 'jets.Where(lambda j: (j.pt>10) and (j.eta < 4.0))')
+test_where_where()
 
 ################
 # Testing out SelectMany

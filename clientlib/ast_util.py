@@ -126,7 +126,7 @@ def lambda_build(args, l_expr):
         args = [args]
     ast_args = ast.arguments(args=[ast.arg(arg=x) for x in args])
     call_lambda = ast.Lambda(args=ast_args, body=l_expr)
-    return lambda_wrap(call_lambda)
+    return call_lambda
 
 def lambda_body_replace(l, new_expr):
     '''
@@ -170,8 +170,32 @@ def lambda_is_identity(l):
     
     a = b.args.args[0].arg
     return a == b.body.id
+
+def lambda_is_true(l):
+    'Return true if this lambda always returns true'
+    if not lambda_test(l):
+        return False
+    rl = lambda_unwrap(l)
+    if type(rl.body) is not ast.NameConstant:
+        return False
+
+    return rl.body.value == True
     
-def lambda_test(l, nargs):
+def lambda_test(l, nargs = None):
     r''' Test arguments
     '''
+    if type(l) is not ast.Lambda:
+        if type(l) is not ast.Module:
+            return False
+        if len(l.body) != 1:
+            return False
+        if type (l.body[0]) is not ast.Expr:
+            return False
+        if type(l.body[0].value) is not ast.Lambda:
+            return False
+    rl = lambda_unwrap(l) if type(l) is ast.Module else l
+    if type(rl) is not ast.Lambda:
+        return False
+    if nargs == None:
+        return True
     return len(lambda_unwrap(l).args.args) == nargs

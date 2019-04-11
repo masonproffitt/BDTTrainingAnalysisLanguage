@@ -172,6 +172,6 @@ def test_tuple_around_first_with_where():
     util_process('events.Select(lambda e: e.jets.Select(lambda j: (j, e)).First()[0]).Where(lambda j: j.pt>1000)',
         'events.Where(lambda e: e.jets.First().pt>1000).Select(lambda f: f.jets.First())')
 
-# def test_tuple_many_layers():
-#     util_process('events.Select(lambda e: (e, e.jets(), e.tracks()).Select(lambda i: i[1].Select(lambda j: (j,i[0],i[2])).First()).Where(lambda inf: inf[1].pt>1000))',
-#             'events.Where(lambda e: e.jets().First().pt>1000).Select(lambda f: f.jets().Select(lambda j: (j, f, f.tracks()).First()))')
+def test_tuple_selectmany_first():
+    util_process('events.Select(lambda e: (e.jets, e.tracks.Where(lambda t: t.pt > 1000.0))).Select(lambda e1: e1[0].Select(lambda j: (j, e1[1])).First()).Select(lambda jInfo: (jinfo[1].Count(),))',
+        'events.Select(lambda e: e.tracks.Where(lambda t: t.pt > 1000.0).Count())')

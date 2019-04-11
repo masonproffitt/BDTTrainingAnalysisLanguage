@@ -5,8 +5,8 @@ from clientlib.DataSets import EventDataSet
 from cpplib.math_utils import DeltaR
 
 # The input file we are going to use to do the training
-#f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
-f = EventDataSet(r"file://C:/Users/gordo/Documents/mc16_13TeV/AOD.16300985._000011.pool.root.1")
+f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
+#f = EventDataSet(r"file://C:/Users/gordo/Documents/mc16_13TeV/AOD.16300985._000011.pool.root.1")
 
 # Turn into an event stream that is known by ATLAS.
 events = f.AsATLASEvents()
@@ -123,13 +123,34 @@ events = f.AsATLASEvents()
 #             .AsPandasDF(columns=['JetPt', 'JetEta']) \
 #             .value()
 # -->
+# training_df = events \
+#             .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
+#             .Select('lambda e1: e1[1].Select(lambda j: (e1[0],j,e1[2])).First()') \
+#             .Select('lambda jInfo: (jInfo[0].runNumber(), jInfo[0].eventNumber(), jInfo[1].pt()/1000.0, jInfo[1].eta(), jInfo[2].Where(lambda t1: DeltaR(t1.eta(), t1.phi(), jInfo[1].eta(), jInfo[1].phi()) < 0.2).Count())') \
+#             .Where('lambda jInfo1: jInfo1[2] > 40.0') \
+#             .AsPandasDF(columns=['Run', 'Event', 'JetPt', 'JetEta', 'NTracks']) \
+#             .value()
+# This generates bad code
+# training_df = events \
+#             .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
+#             .Select('lambda e1: e1[1].Select(lambda j: (e1[0],j,e1[2])).First()') \
+#             .Select('lambda jInfo: (jInfo[0].runNumber(), jInfo[0].eventNumber(), jInfo[1].pt()/1000.0, jInfo[1].eta())') \
+#             .AsPandasDF(columns=['Run', 'Event', 'JetPt', 'JetEta']) \
+#             .value()
+# Makes for bad code
+# training_df = events \
+#             .Select("lambda e: (e.Jets('AntiKt4EMTopoJets'), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
+#             .Select('lambda jInfo: (jInfo[1].Where(lambda t1: DeltaR(t1.eta(), t1.phi(), jInfo[0].eta(), jInfo[0].phi()) < 0.2).Count(),)') \
+#             .AsPandasDF(columns=['NTracks']) \
+#             .value()
+
 training_df = events \
-            .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
-            .Select('lambda e1: e1[1].Select(lambda j: (e1[0],j,e1[2])).First()') \
-            .Select('lambda jInfo: (jInfo[0].runNumber(), jInfo[0].eventNumber(), jInfo[1].pt()/1000.0, jInfo[1].eta(), jInfo[2].Where(lambda t1: DeltaR(t1.eta(), t1.phi(), jInfo[1].eta(), jInfo[1].phi()) < 0.2).Count())') \
-            .Where('lambda jInfo1: jInfo1[2] > 40.0') \
-            .AsPandasDF(columns=['Run', 'Event', 'JetPt', 'JetEta', 'NTracks']) \
+            .Select("lambda e: (e.Jets('AntiKt4EMTopoJets'), e.Tracks('InDetTrackParticles').Where(lambda t: t.pt() > 1000.0))") \
+            .Select('lambda e1: e1[0].Select(lambda j: (j,e1[1])).First()') \
+            .Select('lambda jInfo: (jInfo[1].Count(),)') \
+            .AsPandasDF(columns=['NTracks']) \
             .value()
+
 
 # # Save it to a dataframe
 # training_df = track_pts.AsPandasDF(columns=['TrackPt', 'TrackEta']).value()

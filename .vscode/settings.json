@@ -9,6 +9,7 @@
         "XAOD",
         "asts",
         "chmod",
+        "conv",
         "cpplib",
         "eljob",
         "elts",
@@ -16,13 +17,21 @@
         "gordo",
         "iftest",
         "isdir",
+        "isnot",
         "nargs",
         "ntuple",
         "numpy",
         "orelse",
+        "pytest",
         "pythonic",
         "shutil",
         "systematics",
         "ttree"
     ],
+    "python.unitTest.pyTestArgs": [
+        "tests"
+    ],
+    "python.unitTest.unittestEnabled": false,
+    "python.unitTest.nosetestsEnabled": false,
+    "python.unitTest.pyTestEnabled": true,
 }

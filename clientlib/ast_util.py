@@ -137,14 +137,14 @@ def lambda_body_replace(l, new_expr):
 
     Returns:
 
-    new_l: New lambda that looks just like the old one, other than the expression is new. If the old one was an ast.Module, so will this one be.
+    new_l: New lambda that looks just like the old one, other than the expression is new.
+            If the old one was an ast.Module, so will this one be. And the arguments are the
+            same - even the same names.
     '''
-    lb = l.body[0].value if type(l) is ast.Module else l
-    if type(lb) is not ast.Lambda:
-        raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
+    lb = lambda_unwrap(l)
 
     new_l = ast.Lambda(lb.args, new_expr)
-    return lambda_wrap(new_l) if type(l) is ast.Module else l
+    return lambda_wrap(new_l) if type(l) is ast.Module else new_l
 
 def lambda_assure(east, nargs=None):
     r'''

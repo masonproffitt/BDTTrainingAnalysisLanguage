@@ -6,7 +6,7 @@ import sys
 sys.path.append('.')
 
 # Now the real test code starts.
-from clientlib.ast_util import lambda_is_identity, lambda_test, lambda_is_true
+from clientlib.ast_util import lambda_is_identity, lambda_test, lambda_is_true, lambda_unwrap, lambda_body_replace
 import ast
 
 # Identity
@@ -44,4 +44,27 @@ def test_lambda_is_true_no():
 
 def test_lambda_is_true_expression():
     assert lambda_is_true(ast.parse("lambda x: x")) == False
-    
+
+# Lambda unwrap
+def test_unwrap_bad_lambda():
+    try:
+        lambda_unwrap(ast.parse('x+1'))
+        assert False
+    except:
+        pass
+
+# Lambda body replace
+def test_lambda_replace_simple():
+    t = ast.parse("lambda b: b+1")
+    b = ast.parse("2*b").body[0].value
+    expected = ast.parse("lambda b: 2*b")
+
+    assert ast.dump(expected) == ast.dump(lambda_body_replace(t, b))
+
+def test_lambda_replace_simple_unwrapped():
+    t = lambda_unwrap(ast.parse("lambda b: b+1"))
+    b = ast.parse("2*b").body[0].value
+    expected = lambda_unwrap(ast.parse("lambda b: 2*b"))
+
+    assert ast.dump(expected) == ast.dump(lambda_body_replace(t, b))
+

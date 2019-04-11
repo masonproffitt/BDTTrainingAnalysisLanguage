@@ -8,6 +8,7 @@ import cpplib.cpp_ast as cpp_ast
 from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple
 import xAODlib.result_handlers as rh
 import clientlib.query_result_asts as query_result_asts
+from clientlib.call_stack import argument_stack, stack_frame
 
 from clientlib.tuple_simplifier import remove_tuple_subscripts
 from clientlib.function_simplifier import simplify_chained_calls
@@ -60,7 +61,7 @@ class query_ast_visitor(ast.NodeVisitor):
         '''
         # Tracks the output of the code.
         self._gc = generated_code()
-        self._var_dict = {}
+        self._arg_stack = argument_stack()
         self._result = None
 
     def include_files(self):
@@ -123,24 +124,18 @@ class query_ast_visitor(ast.NodeVisitor):
 
     def resolve_id(self, id):
         'Look up the in our local dict'
-        return self._var_dict[id] if id in self._var_dict else id
+        return self._arg_stack.lookup_name(id)
 
     def visit_Call_Lambda(self, call_node):
         'Call to a lambda function. This is book keeping and we dive in'
 
-        for c_arg, l_arg in zip(call_node.args, call_node.func.args.args):
-            self._var_dict[l_arg.arg] = c_arg
+        with stack_frame(self._arg_stack):
+            for c_arg, l_arg in zip(call_node.args, call_node.func.args.args):
+                self._arg_stack.define_name(l_arg.arg, c_arg)
 
-        # Next, process the lambda's body.
-        self.visit(call_node.func.body)
-
-        # Done processing the lambda. Remove the arguments
-        # TODO: the below code should work, but it isn't for some reason.
-        #       Probably because when we move functions we aren't moving the argument names
-        #       correctly (the nesting). This is going to come back and bite us!
-        # for l_arg in call_node.func.args.args:
-        #     del self._var_dict[l_arg.arg]
-
+            # Next, process the lambda's body.
+            self.visit(call_node.func.body)
+            
     def assure_in_loop(self, collection):
         r'''
         Make sure that we are currently in a loop. For example, if we are

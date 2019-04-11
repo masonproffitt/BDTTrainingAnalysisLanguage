@@ -5,7 +5,8 @@ from clientlib.DataSets import EventDataSet
 from cpplib.math_utils import DeltaR
 
 # The input file we are going to use to do the training
-f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
+#f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
+f = EventDataSet(r"file://C:/Users/gordo/Documents/mc16_13TeV/AOD.16300985._000011.pool.root.1")
 
 # Turn into an event stream that is known by ATLAS.
 events = f.AsATLASEvents()

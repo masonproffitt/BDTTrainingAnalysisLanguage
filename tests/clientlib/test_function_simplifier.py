@@ -6,9 +6,12 @@ import sys
 sys.path.append('.')
 
 # Now the real test code starts.
-from clientlib.function_simplifier import simplify_chained_calls
+from clientlib.function_simplifier import simplify_chained_calls, convolute
 from clientlib.find_LINQ_operators import replace_LINQ_operators
+from clientlib.ast_util import lambda_unwrap
+from clientlib.call_stack import argument_stack
 import ast
+import copy
 
 class normalize_ast(ast.NodeTransformer):
     '''
@@ -17,13 +20,7 @@ class normalize_ast(ast.NodeTransformer):
     '''
     def __init__ (self):
         self._arg_index = 0
-        self._arg_transformer = []
-
-    def push_stack_frame(self):
-        self._arg_transformer.append({})
-
-    def pop_stack_frame(self):
-        del self._arg_transformer[-1]
+        self._arg_stack = argument_stack()
 
     def new_arg(self):
         'Generate a new argument, in a nice order'
@@ -31,29 +28,26 @@ class normalize_ast(ast.NodeTransformer):
         self._arg_index += 1
         return "t_arg_{0}".format(old_arg)
 
+    def start_visit(self, node):
+        return self.visit(copy.deepcopy(node))
+
     def visit_Lambda(self, node):
         'Arguments need a uniform naming'
         a_mapping = [(a.arg, self.new_arg()) for a in node.args.args]
 
         # Remap everything that is inside this guy
-        self.push_stack_frame()
+        self._arg_stack.push_stack_frame()
         for m in a_mapping:
-            self._arg_transformer[-1][m[0]] = m[1]
+            self._arg_stack.define_name(m[0],m[1])
         body = self.visit(node.body)
-        self.pop_stack_frame()
+        self._arg_stack.pop_stack_frame()
 
         # Rebuild the lambda guy
         args = [ast.arg(arg=m[1]) for m in a_mapping]
         return ast.Lambda(args=args, body=body)
 
-    def lookup_name(self, name):
-        for frames in reversed(self._arg_transformer):
-            if name in frames:
-                return frames[name]
-        return name
-
     def visit_Name(self, node):
-        return self.lookup_name(node.id)
+        return self._arg_stack.lookup_name(node.id)
 
 def util_process(ast_in, ast_out):
     'Make sure ast in is the same as out after running through - this is a utility routine for the harness'
@@ -71,6 +65,41 @@ def util_process(ast_in, ast_out):
     s_expected = ast.dump(normalize_ast().visit(a_expected_linq))
 
     assert s_updated == s_expected
+
+################
+# Whitebox testing - make sure the convolute function code works. This
+# is an internal method, so if it eventually disappears...
+
+def util_test_conv(f1, f2, f_expected):
+    a_1 = lambda_unwrap(ast.parse(f1))
+    a_2 = lambda_unwrap(ast.parse(f2))
+    a_expected = lambda_unwrap(ast.parse(f_expected))
+
+    s_1 = ast.dump(normalize_ast().start_visit(a_1))
+    s_2 = ast.dump(normalize_ast().start_visit(a_2))
+    s_expected = ast.dump(normalize_ast().start_visit(a_expected))
+
+    # Do the convolution
+    a_conv = convolute(a_1, a_2)
+    a_conv_reduced = simplify_chained_calls().visit(a_conv)
+
+    s_conv_reduced = ast.dump(normalize_ast().start_visit(a_conv_reduced))
+    s_1_after = ast.dump(normalize_ast().start_visit(a_1))
+    s_2_after = ast.dump(normalize_ast().start_visit(a_2))
+
+    # Make sure things match up with expected and nothing has changed.
+    assert s_1 == s_1_after
+    assert s_2 == s_2_after
+    assert s_conv_reduced == s_expected
+
+def test_convolute_simple_function():
+    util_test_conv('lambda x: 1', 'lambda y: 2', 'lambda x: 1')
+
+def test_convolute_addition():
+    util_test_conv('lambda x: x+1', 'lambda y: y+h', 'lambda x:x + h + 1')
+
+def test_convolute_compare():
+    util_test_conv('lambda x: x>40', 'lambda j: j.pt', 'lambda j:j.pt>40')
 
 ################
 # Test convolutions
@@ -109,6 +138,7 @@ def test_where_where():
 
 def test_where_select():
     util_process('jets.Select(lambda j: j.pt).Where(lambda p: p > 40)', 'jets.Where(lambda j: j.pt > 40).Select(lambda k: k.pt)')
+#test_where_select()
 
 def test_where_first():
     util_process('events.Select(lambda e: e.jets.First()).Select(lambda j: j.pt()).Where(lambda jp: jp>40.0)', \

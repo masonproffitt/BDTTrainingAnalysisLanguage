@@ -1,6 +1,7 @@
 # Various node visitors to clean up nested function calls of various types.
 from clientlib.query_ast import Select, Where, SelectMany, First
 from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build, lambda_is_identity, lambda_test, lambda_is_true
+from clientlib.call_stack import argument_stack, stack_frame
 import copy
 import ast
 
@@ -21,8 +22,8 @@ def convolute(ast_g, ast_f):
         raise BaseException("Only lambdas in Selects!")
     
     # Combine the lambdas into a single call by calling g with f as an argument
-    l_g = lambda_unwrap(ast_g)
-    l_f = lambda_unwrap(ast_f)
+    l_g = copy.deepcopy(lambda_unwrap(ast_g))
+    l_f = copy.deepcopy(lambda_unwrap(ast_f))
 
     x = arg_name()
     f_arg = ast.Name(x, ast.Load())
@@ -43,7 +44,7 @@ class simplify_chained_calls(ast.NodeTransformer):
     '''
 
     def __init__(self):
-        self._arg_dict = {}
+        self._arg_stack = argument_stack()
 
     def visit_Select_of_Select(self, parent, selection):
         r'''
@@ -258,11 +259,11 @@ class simplify_chained_calls(ast.NodeTransformer):
         '''
         if type(call_node.func) is ast.Lambda:
             arg_asts = [self.visit(a) for a in call_node.args]
-            for a_name, arg in zip(call_node.func.args.args, arg_asts):
-                # TODO: These have to be removed correctly (deal with common arg names!)
-                self._arg_dict[a_name.arg] = arg
-            # Now, evaluate the expression, and then lift it.
-            return self.visit(call_node.func.body)
+            with stack_frame(self._arg_stack):
+                for a_name, arg in zip(call_node.func.args.args, arg_asts):
+                    self._arg_stack.define_name(a_name.arg, arg)
+                # Now, evaluate the expression, and then lift it.
+                return self.visit(call_node.func.body)
         else:
             return self.generic_visit(call_node)
 
@@ -317,9 +318,7 @@ class simplify_chained_calls(ast.NodeTransformer):
 
     def visit_Name(self, name_node):
         'Do lookup and see if we should translate or not.'
-        if name_node.id in self._arg_dict:
-            return self._arg_dict[name_node.id]
-        return name_node
+        return self._arg_stack.lookup_name(name_node.id, default=name_node)
 
     def visit_Attribute(self, node):
         'Make sure to make a new version of the Attribute so it does not get reused'

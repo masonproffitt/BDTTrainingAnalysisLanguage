@@ -17,7 +17,7 @@ class SelectMany(ast.AST):
     a collection, and then one iterates over that collection.
     """
 
-    def __init__(self, source, selection_function):
+    def __init__(self, source = None, selection_function = None):
         r"""
         AST node that represents a SelectMany operation. It's resulting type is an iterator
         over the collection selected by ``selection_function``.
@@ -36,7 +36,7 @@ class Select(ast.AST):
     some selection function.
     """
 
-    def __init__(self, source, select_function):
+    def __init__(self, source = None, select_function = None):
         r"""
         Initialize an AST node that represents a Select operation. As input takes an iterator
         and transforms it to another iterator by applying ``select_function`` to each individual
@@ -55,7 +55,7 @@ class Where(ast.AST):
     satisfy the operator to move on.
     '''
 
-    def __init__ (self, source, filter_lambda):
+    def __init__ (self, source = None, filter_lambda = None):
         r'''
         Initialize an AST node that represents a filter operation (Where). As input takes
         an iterator and only lets through items in the sequence that pass the `filter_lambda`
@@ -75,7 +75,7 @@ class First(ast.AST):
     up one level.
     '''
 
-    def __init__ (self, source):
+    def __init__ (self, source = None):
         r'''
         Initialize the First AST node.
 

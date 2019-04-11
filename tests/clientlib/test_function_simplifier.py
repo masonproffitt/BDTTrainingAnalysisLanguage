@@ -161,8 +161,17 @@ def test_tuple_select():
 
 def test_tuple_in_lambda():
     util_process('(lambda t: t[0])((j1, j2))', 'j1')
+
 def test_tuple_in_lambda_2deep():
     util_process('(lambda t: t[0])((lambda s: s[1])((j0, (j1, j2))))', 'j1')
 
 def test_tuple_around_first():
     util_process('events.Select(lambda e: e.jets.Select(lambda j: (j, e)).First()[0])', 'events.Select(lambda e: e.jets.First())')
+
+def test_tuple_around_first_with_where():
+    util_process('events.Select(lambda e: e.jets.Select(lambda j: (j, e)).First()[0]).Where(lambda j: j.pt>1000)',
+        'events.Where(lambda e: e.jets.First().pt>1000).Select(lambda f: f.jets.First())')
+
+# def test_tuple_many_layers():
+#     util_process('events.Select(lambda e: (e, e.jets(), e.tracks()).Select(lambda i: i[1].Select(lambda j: (j,i[0],i[2])).First()).Where(lambda inf: inf[1].pt>1000))',
+#             'events.Where(lambda e: e.jets().First().pt>1000).Select(lambda f: f.jets().Select(lambda j: (j, f, f.tracks()).First()))')

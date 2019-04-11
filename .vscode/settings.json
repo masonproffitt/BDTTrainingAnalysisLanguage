@@ -30,9 +30,11 @@
         "ttree"
     ],
     "python.unitTest.pyTestArgs": [
+        "-vv",
         "tests"
     ],
     "python.unitTest.unittestEnabled": false,
     "python.unitTest.nosetestsEnabled": false,
     "python.unitTest.pyTestEnabled": true,
+    "python.linting.enabled": true,
 }

@@ -17,6 +17,7 @@
         "gordo",
         "iftest",
         "isdir",
+        "isfile",
         "isnot",
         "nargs",
         "ntuple",

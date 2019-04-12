@@ -4,7 +4,7 @@ import xAODlib.statement as statement
 from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
-from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple, cpp_iterator_over_collection
+from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple, cpp_iterator_over_collection, cpp_constant
 import xAODlib.result_handlers as rh
 import clientlib.query_result_asts as query_result_asts
 from clientlib.call_stack import argument_stack, stack_frame
@@ -209,7 +209,7 @@ class query_ast_visitor(ast.NodeVisitor):
         if use_first_element_separately:
             is_first_iter = cpp_variable(unique_name("is_first"), self._gc.current_scope(), cpp_type="bool")
             self._gc.declare_variable(is_first_iter)
-            self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("true", self._gc.current_scope())))
+            self._gc.add_statement(statement.set_var(is_first_iter, cpp_constant("true")))
         else:
             self._gc.add_statement(statement.set_var(result, self.get_rep(init_val)))
 
@@ -225,9 +225,9 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # If we have to use the first lambda to set the first value, then we need that code up front.
         if use_first_element_separately:
-            if_first = statement.iftest(cpp_expression(is_first_iter.as_cpp(), self._gc.current_scope()))
+            if_first = statement.iftest(cpp_constant(is_first_iter.as_cpp()))
             self._gc.add_statement(if_first)
-            self._gc.add_statement(statement.set_var(is_first_iter, cpp_expression("false", self._gc.current_scope())))
+            self._gc.add_statement(statement.set_var(is_first_iter, cpp_constant("false")))
             first_scope = self._gc.current_scope()
 
             if init_lambda is not None:
@@ -256,6 +256,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # If this is a special type of Function call that we need to work with, split out here
         # before any processing is done.
+        # TODO: Support arguments to functions like this.
         if (call_node.func.attr == "Aggregate"):
             return self.visit_Call_Aggregate(call_node)
 
@@ -269,8 +270,9 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # We support member calls that directly translate only. Here, for example, this is only for
         # obj.pt() or similar. The translation is direct.
+        # TODO: The iterator might be in an argument, so passing calling_against here may not be ok.
         c_stub = calling_against.as_cpp() + ("->" if calling_against.is_pointer() else ".")
-        self._result = cpp_expression(c_stub + function_name + "()", calling_against.scope(), the_ast = call_node)
+        self._result = cpp_expression(c_stub + function_name + "()", calling_against, calling_against.scope(), the_ast = call_node)
 
     def visit_function_ast(self, call_node):
         'Drop-in replacement for a function'
@@ -279,7 +281,8 @@ class query_ast_visitor(ast.NodeVisitor):
         arg_reps = [self.get_rep(a) for a in call_node.args]
 
         # Code up a call
-        r = cpp_expression('{0}({1})'.format(cpp_func.cpp_name, ','.join(a.as_cpp() for a in arg_reps)), self._gc.current_scope(), cpp_type = cpp_func.cpp_return_type)
+        # TODO: The iterator might not be Note.
+        r = cpp_expression('{0}({1})'.format(cpp_func.cpp_name, ','.join(a.as_cpp() for a in arg_reps)), [cpp_func] + arg_reps, self._gc.current_scope(), cpp_type = cpp_func.cpp_return_type)
 
         # Include files and return the resulting expression
         for i in cpp_func.include_files:
@@ -317,7 +320,7 @@ class query_ast_visitor(ast.NodeVisitor):
             raise BaseException("Do not know how to take the index of type '{0}'".format(v.cpp_type()))
         index = self.get_rep(node.slice)
         # TODO: extract the type from the expression
-        node.rep = cpp_expression("{0}.at({1})".format(v.as_cpp(), index.as_cpp()), self._gc.current_scope(), cpp_type="double")
+        node.rep = cpp_expression("{0}.at({1})".format(v.as_cpp(), index.as_cpp()), [v, index], self._gc.current_scope(), cpp_type="double")
         self._result = node.rep
 
     def visit_Index(self, node):
@@ -341,9 +344,9 @@ class query_ast_visitor(ast.NodeVisitor):
         right = self.get_rep(node.right)
 
         if type(node.op) is ast.Add:
-            r = cpp_expression("({0}+{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope())
+            r = cpp_expression("({0}+{1})".format(left.as_cpp(), right.as_cpp()), [left, right], self._gc.current_scope())
         elif type(node.op) is ast.Div:
-            r = cpp_expression("({0}/{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope())
+            r = cpp_expression("({0}/{1})".format(left.as_cpp(), right.as_cpp()), [left, right], self._gc.current_scope())
         else:
             raise BaseException("Binary operator {0} is not implemented.".format(type(node.op)))
 
@@ -390,7 +393,7 @@ class query_ast_visitor(ast.NodeVisitor):
         left = self.get_rep(node.left)
         right = self.get_rep(node.comparators[0])
 
-        r = cpp_expression('({0}{1}{2})'.format(left.as_cpp(), compare_operations[type(node.ops[0])], right.as_cpp()), self._gc.current_scope())
+        r = cpp_expression('({0}{1}{2})'.format(left.as_cpp(), compare_operations[type(node.ops[0])], right.as_cpp()), [left, right], self._gc.current_scope())
         node.rep = r
         self._result = r
 
@@ -406,7 +409,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # How we check and short-circuit depends on if we are doing and or or.
         check_expr = result.as_cpp() if type(node.op) == ast.And else '!{0}'.format(result.as_cpp())
-        check = cpp_expression(check_expr, self._gc.current_scope(), cpp_type='bool')
+        check = cpp_expression(check_expr, result, self._gc.current_scope(), cpp_type='bool')
 
         first = True
         scope = self._gc.current_scope()
@@ -427,11 +430,11 @@ class query_ast_visitor(ast.NodeVisitor):
 
 
     def visit_Num(self, node):
-        node.rep = cpp_expression(node.n, self._gc.current_scope())
+        node.rep = cpp_constant(node.n)
         self._result = node.rep
 
     def visit_Str(self, node):
-        node.rep = cpp_expression('"{0}"'.format(node.s), self._gc.current_scope())
+        node.rep = cpp_constant('"{0}"'.format(node.s))
         self._result = node.rep
 
     def visit_resultTTree(self, node):
@@ -567,9 +570,10 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.add_statement(statement.iftest(rep))
 
         # Finally, our result is basically what we had for the source.
-        loop_var.set_scope(self._gc.current_scope())
-        node.rep = loop_var
-        self._result = loop_var
+        new_loop_var = copy(loop_var)
+        new_loop_var.set_scope(self._gc.current_scope())
+        node.rep = new_loop_var
+        self._result = new_loop_var
 
     def visit_First(self, node):
         'We are in a sequence. Take the first element of the sequence and use that for future things.'
@@ -581,7 +585,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # The First terminal works by protecting the code with a if (first_time) {} block.
         # We need to declare the first_time variable outside the block where the thing we are
         # looping over here is defined. This is a little tricky, so we delegate to another method.
-        loop_scope = loop_var.scope_of_definition()
+        loop_scope = loop_var.scope_of_iter_definition()
         outside_block_scope = loop_scope[0][-2]
 
         # Define the variable to track this
@@ -591,7 +595,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # Now, as long as is_first is true, we can execute things inside this statement.
         s = statement.iftest(is_first)
         self._gc.add_statement(s)
-        self._gc.add_statement(statement.set_var(is_first, cpp_expression('false', self._gc.current_scope(), cpp_type='bool')))
+        self._gc.add_statement(statement.set_var(is_first, cpp_constant('false', cpp_type='bool')))
 
         # Finally, the result of first is the object that we are looping over.
         new_loop_var = copy(loop_var)

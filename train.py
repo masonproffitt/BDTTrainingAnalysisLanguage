@@ -130,6 +130,14 @@ events = f.AsATLASEvents()
 #         .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: e.Tracks("InDetTrackParticles")).First().Count()') \
 #         .AsPandasDF('dude') \
 #         .value()
+# training_df = events \
+#         .Select('lambda e: e.Jets("AntiKt4EMTopoJets").First().pt()/1000.0') \
+#         .AsPandasDF('FirstJetPt') \
+#         .value()
+# training_df = events \
+#         .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0).First()') \
+#         .AsPandasDF('FirstJetPt') \
+#         .value()
 
 # -->
 # training_df = events \
@@ -164,7 +172,7 @@ events = f.AsATLASEvents()
 #         .AsPandasDF('dude') \
 #         .value()
 training_df = events \
-        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").First().pt()/1000.0') \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0).Where(lambda jpt: jpt > 10.0).First()') \
         .AsPandasDF('FirstJetPt') \
         .value()
 

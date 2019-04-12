@@ -56,3 +56,12 @@ def test_First_object_in_event():
         .AsPandasDF('FirstJetPt') \
         .value()
     assert int(training_df.iloc[0]['FirstJetPt']) == 257
+
+def test_first_object_in_event_with_where():
+    # Make sure First puts it if statement in the right place.
+    training_df = f.AsATLASEvents() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0).Where(lambda jpt: jpt > 10.0).First()') \
+        .AsPandasDF('FirstJetPt') \
+        .value()
+    assert int(training_df.iloc[0]['FirstJetPt']) == 257
+    assert len(training_df) == 2000

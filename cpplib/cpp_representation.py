@@ -82,9 +82,15 @@ class cpp_variable(cpp_rep_base):
         self._ast = ast.Name(self.as_cpp(), ast.Load())
         self._ast.rep = self
 
-    def scope_of_definition(self):
+    def scope_of_iter_definition(self):
         'Return the scope where this variable was defined'
         return self.scope()
+
+    def find_best_iterator(self):
+        'We are the best possible iterator!'
+        if not self.is_iterable:
+            raise BaseException('Attempt to find the iterator for a non-iterating variable')
+        return self
 
 class cpp_tuple(cpp_rep_base):
     r'''
@@ -98,6 +104,17 @@ class cpp_tuple(cpp_rep_base):
     def tup(self):
         return self._tuple
 
+class cpp_constant(cpp_rep_base):
+    r'''
+    Represents a constant
+    '''
+    def __init__(self, val, cpp_type = None):
+        cpp_rep_base.__init__(self, None, is_pointer=False)
+        self._val = val
+        self._cpp_type = cpp_type
+
+    def as_cpp(self):
+        return self._val
 class cpp_expression(cpp_rep_base):
     r'''
     Represents a small bit of C++ code that is an expression. For example "a+b". It does not hold full
@@ -105,14 +122,33 @@ class cpp_expression(cpp_rep_base):
 
     TODO: Does not yet automatically make an ast for this guy.
     '''
-    def __init__(self, expr, scope, cpp_type=None, is_pointer = False, the_ast = None):
+    def __init__(self, expr, iterator_var, scope, cpp_type=None, is_pointer = False, the_ast = None):
         cpp_rep_base.__init__(self, scope, is_pointer=False)
         self._expr = expr
         self._cpp_type = cpp_type
         self._ast = ast
+        self._iterator = iterator_var #.get_iterator_var() if iterator_var is not None else None
 
     def as_cpp(self):
         return self._expr
+
+    def find_best_iterator(self):
+        'Internal method to get the iterator'
+        if self._iterator is None:
+            return None
+        if type(self._iterator) is not list:
+            return self._iterator.find_best_iterator() 
+
+        # Now we have choices. So, lets get all of them we can.
+        c = [b for b in [a.find_best_iterator() for a in self._iterator if hasattr(a, 'find_best_iterator')] if b is not None]
+        if len(c) > 1:
+            raise BaseException("Can't decide what iterator is best! Internal error!")
+        return c[0]
+
+    def scope_of_iter_definition(self):
+        'Return the scope where this variable was defined'
+        i = self.find_best_iterator()
+        return i.scope_of_iter_definition() if i is not None else self.scope()
 
 class cpp_collection(cpp_variable):
     r'''

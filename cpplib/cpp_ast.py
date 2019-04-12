@@ -132,7 +132,7 @@ def process_ast_node(visitor, gc, current_loop_value, call_node):
         blk.add_statement(statements.arbitrary_statement(l))
 
     # Set the result and close the scope
-    blk.add_statement(statements.set_var(result_rep, cpp_expression(cpp_ast_node.result, gc.current_scope())))
+    blk.add_statement(statements.set_var(result_rep, cpp_expression(cpp_ast_node.result, current_loop_value, gc.current_scope())))
     gc.pop_scope()
 
     return result_rep

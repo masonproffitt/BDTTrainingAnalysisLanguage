@@ -36,6 +36,10 @@ def convolute(ast_g, ast_f):
     # Build a new call to nest the functions
     return call_g_lambda
 
+def make_Select(source, selection):
+    'Make a select, and return source is selection is an identity'
+    return source if lambda_is_identity(selection) else Select(source, selection) 
+
 class simplify_chained_calls(ast.NodeTransformer):
     '''
     In order to cleanly evaluate things like tuples (which should not show up at the back end),
@@ -62,7 +66,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         new_selection = self.visit(convolute(func_g, func_f))
 
         # And return the parent select with the new selection function
-        return Select(parent.source, new_selection)
+        return make_Select(parent.source, new_selection)
 
     def visit_Select_of_SelectMany(self, parent, selection):
         r'''
@@ -75,7 +79,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         func_g = selection
         func_f = parent.selection
 
-        return self.visit(SelectMany(parent.source, lambda_body_replace(func_f, Select(lambda_body(func_f), func_g))))
+        return self.visit(SelectMany(parent.source, lambda_body_replace(func_f, make_Select(lambda_body(func_f), func_g))))
 
     def visit_Select(self, node):
         r'''
@@ -106,10 +110,7 @@ class simplify_chained_calls(ast.NodeTransformer):
             return self.visit_Select_of_SelectMany(parent_select, node.selection)
         else:
             selection = self.visit(node.selection)
-            if lambda_is_identity(selection):
-                return parent_select
-            else:
-                return Select(parent_select, self.visit(node.selection))
+            return make_Select(parent_select, selection)
 
     def visit_SelectMany_of_Select(self, parent, selection):
         '''
@@ -196,7 +197,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         seq = parent.source
 
         w = Where(seq, self.visit(convolute(func_g, func_f)))
-        s = Select(w, func_f)
+        s = make_Select(w, func_f)
 
         # Recursively visit this mess to see if the Where needs to move further up.
         return self.visit(s)
@@ -293,7 +294,7 @@ class simplify_chained_calls(ast.NodeTransformer):
 
         # Build the select that starts from the source and does the slice.
         a = arg_name()
-        select = Select(source, lambda_build(a, ast.Subscript(ast.Name(a, ast.Load()), s, ast.Load())))
+        select = make_Select(source, lambda_build(a, ast.Subscript(ast.Name(a, ast.Load()), s, ast.Load())))
 
         return self.visit(First(select))
 

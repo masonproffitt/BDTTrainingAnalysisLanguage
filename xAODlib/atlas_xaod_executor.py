@@ -126,6 +126,11 @@ class query_ast_visitor(ast.NodeVisitor):
 
         return node.rep
 
+    def get_rep_iterator(self, node):
+        'For nodes that are generating sequences, returns the iterator attached'
+        _ = self.get_rep(node)
+        return node.rep_iter
+
     def resolve_id(self, id):
         'Look up the in our local dict'
         return self._arg_stack.lookup_name(id)
@@ -534,6 +539,7 @@ class query_ast_visitor(ast.NodeVisitor):
             rep = cpp_iterator_over_collection(rep, rep.scope())
         rep.is_iterable = True
         select_ast.rep = rep
+        select_ast.rep_iter = loop_var
         self._result = rep
 
     def visit_SelectMany(self, node):
@@ -585,7 +591,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # The First terminal works by protecting the code with a if (first_time) {} block.
         # We need to declare the first_time variable outside the block where the thing we are
         # looping over here is defined. This is a little tricky, so we delegate to another method.
-        loop_scope = loop_var.scope_of_iter_definition()
+        loop_scope = self.get_rep_iterator(node.source).scope()
         outside_block_scope = loop_scope[0][-2]
 
         # Define the variable to track this

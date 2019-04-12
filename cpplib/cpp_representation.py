@@ -82,6 +82,10 @@ class cpp_variable(cpp_rep_base):
         self._ast = ast.Name(self.as_cpp(), ast.Load())
         self._ast.rep = self
 
+    def scope_of_definition(self):
+        'Return the scope where this variable was defined'
+        return self.scope()
+
 class cpp_tuple(cpp_rep_base):
     r'''
     Sometimes we need to carry around a tuple. Unfortunately, we can't "add" items onto a regular
@@ -98,11 +102,14 @@ class cpp_expression(cpp_rep_base):
     r'''
     Represents a small bit of C++ code that is an expression. For example "a+b". It does not hold full
     statements.
+
+    TODO: Does not yet automatically make an ast for this guy.
     '''
-    def __init__(self, expr, scope, cpp_type=None, is_pointer = False):
+    def __init__(self, expr, scope, cpp_type=None, is_pointer = False, the_ast = None):
         cpp_rep_base.__init__(self, scope, is_pointer=False)
         self._expr = expr
         self._cpp_type = cpp_type
+        self._ast = ast
 
     def as_cpp(self):
         return self._expr
@@ -144,3 +151,27 @@ class cpp_collection(cpp_variable):
 
         # and that iterating variable is the rep
         return v
+
+class cpp_iterator_over_collection(cpp_variable):
+    r'''
+    Special case used to cache an iterator that is at least two levesl down. In short, it is
+    an iterator over a collection of collections. These are generated when a Select statement
+    returns collection (rather than a single item).
+    '''
+    def __init__(self, iter, scope):
+        '''
+        Create an iterator over a collection.
+
+        iter - The iterator cpp_variable (or expression or whatever)
+        scope - Scope where this is first valid as something like this.
+        '''
+        cpp_variable.__init__(self, iter.name, scope)
+        self._iter = iter
+
+    def iter(self):
+        return self._iter
+
+    def loop_over_collection(self, gc):
+        'Loop over this iterator.'
+        # Unwrap one level
+        return self._iter

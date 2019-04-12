@@ -31,9 +31,28 @@ def test_select_first_of_array():
     assert training_df.iloc[1999]['dude'] == 231
 
 def test_flatten_array():
+    # A very simple flattening of arrays
     training_df = f.AsATLASEvents() \
         .SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets")') \
         .Select('lambda j: j.pt()/1000.0') \
         .AsPandasDF('JetPt') \
         .value()
     assert int(training_df.iloc[0]['JetPt']) == 257
+
+def test_First_two_outer_loops():
+    # THis is a little tricky because the First there is actually running over one jet in the event. Further, the Where
+    # on the number of tracks puts us another level down. So it is easy to produce code that compiles, but the First's if statement
+    # is very much in the wrong place.
+    training_df = f.AsATLASEvents() \
+            .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: e.Tracks("InDetTrackParticles").Where(lambda t: t.pt() > 1000.0)).First().Count()') \
+            .AsPandasDF('dude') \
+            .value()
+    assert training_df.iloc[0]['NTracks'] == 100
+
+def test_First_object_in_event():
+    # Make sure First puts it if statement in the right place.
+    training_df = f.AsATLASEvents() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").First().pt()/1000.0') \
+        .AsPandasDF('FirstJetPt') \
+        .value()
+    assert int(training_df.iloc[0]['FirstJetPt']) == 257

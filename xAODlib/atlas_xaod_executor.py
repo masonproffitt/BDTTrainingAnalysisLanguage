@@ -2,10 +2,9 @@
 from xAODlib.generated_code import generated_code, scope_is_deeper
 import xAODlib.statement as statement
 from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
-import xAODlib.AtlasEventStream
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
-from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple
+from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple, cpp_iterator_over_collection
 import xAODlib.result_handlers as rh
 import clientlib.query_result_asts as query_result_asts
 from clientlib.call_stack import argument_stack, stack_frame
@@ -19,10 +18,15 @@ import ast
 import tempfile
 from shutil import copyfile
 import os
+import subprocess
 import sys
 from urllib.parse import urlparse
 import jinja2
 from copy import copy
+
+# Use this to turn on dumping of output and C++
+dump_cpp = False
+dump_running_log = True
 
 # Convert between Python comparisons and C++.
 # TODO: Fill out all possible ones
@@ -201,6 +205,7 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # We have to initialized the variable to some value, and it depends on how the user
         # is trying to initialize things - first iteration or with a value.
+        is_first_iter = None
         if use_first_element_separately:
             is_first_iter = cpp_variable(unique_name("is_first"), self._gc.current_scope(), cpp_type="bool")
             self._gc.declare_variable(is_first_iter)
@@ -265,7 +270,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # We support member calls that directly translate only. Here, for example, this is only for
         # obj.pt() or similar. The translation is direct.
         c_stub = calling_against.as_cpp() + ("->" if calling_against.is_pointer() else ".")
-        self._result = cpp_expression(c_stub + function_name + "()", calling_against.scope())
+        self._result = cpp_expression(c_stub + function_name + "()", calling_against.scope(), the_ast = call_node)
 
     def visit_function_ast(self, call_node):
         'Drop-in replacement for a function'
@@ -517,8 +522,16 @@ class query_ast_visitor(ast.NodeVisitor):
         c = ast.Call(func=selection, args=[loop_var.as_ast()])
         rep = self.get_rep(c)
 
+        # Now, we need to mark this as iterable. But this is a little tricky how this is done.
+        # If this is a value (like j->pt()), then this just becomes a simple sequence. So we
+        # can just mark it. However, if this is already a sequence, then we are doing a sequence
+        # of a sequence. So we need to create a new guy for that so that we can deal with the loop
+        # correctly. That done - we still want to make sure we are iterating over this guy.
+        if rep.is_iterable:
+            rep = cpp_iterator_over_collection(rep, rep.scope())
         rep.is_iterable = True
         select_ast.rep = rep
+        self._result = rep
 
     def visit_SelectMany(self, node):
         r'''
@@ -528,7 +541,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # We need to "call" the source with the function. So build up a new
         # call, and then visit it.
 
-        c = ast.Call(func=node.selection.body[0].value, args=[node.source])
+        c = ast.Call(func=lambda_unwrap(node.selection), args=[node.source])
         rep_collection = self.get_rep(c)
 
         # Get the collection, and then generate the loop over it.
@@ -565,12 +578,15 @@ class query_ast_visitor(ast.NodeVisitor):
         s_rep = self.get_rep(node.source)
         loop_var = self.assure_in_loop(s_rep)
 
-        # Next, mark an external scope edge with a variable that will track when we hit first.
-        # To do this, we have to go up to the loop we are currently looking at.
-        # TODO: Scope needs some methods so we aren't using magic numbers like [0] and [1].
-        is_first = cpp_variable(unique_name('is_first'), s_rep.scope(), cpp_type='bool', initial_value='true')
-        var_book_statement = s_rep.scope()[0][-1]
-        var_book_statement.declare_variable(is_first)
+        # The First terminal works by protecting the code with a if (first_time) {} block.
+        # We need to declare the first_time variable outside the block where the thing we are
+        # looping over here is defined. This is a little tricky, so we delegate to another method.
+        loop_scope = loop_var.scope_of_definition()
+        outside_block_scope = loop_scope[0][-2]
+
+        # Define the variable to track this
+        is_first = cpp_variable(unique_name('is_first'), None, cpp_type='bool', initial_value='true')
+        outside_block_scope.declare_variable(is_first)
 
         # Now, as long as is_first is true, we can execute things inside this statement.
         s = statement.iftest(is_first)
@@ -658,7 +674,9 @@ class atlas_xaod_executor:
         # result is going to be.
         qv = query_ast_visitor()
         result_rep = qv.get_rep(ast)
+        return self.get_result(qv, result_rep)
 
+    def get_result(self, qv, result_rep):
         # Emit the C++ code into our dictionaries to be used in template generation below.
         query_code = cpp_source_emitter()
         qv.emit_query(query_code)
@@ -701,9 +719,17 @@ class atlas_xaod_executor:
             # Now use docker to run this mess
             docker_cmd = "docker run --rm -v {0}:/scripts -v {0}:/results -v {1}:/data  atlas/analysisbase:21.2.62 /scripts/runner.sh".format(
                 local_run_dir, datafile_dir)
-            r = os.system(docker_cmd)
-            print ("Process result is ", r)
-            os.system("type " + os.path.join(local_run_dir, "query.cxx"))
+            
+            if dump_running_log:
+                r = subprocess.call(docker_cmd, stderr=subprocess.STDOUT, shell=False)
+                print ("Result of run: {0}".format(r))
+            else:
+                r = subprocess.call(docker_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, shell=False)
+            if r != 0:
+                raise BaseException("Docker command failed with error {0}".format(r))
+
+            if dump_cpp:
+                os.system("type " + os.path.join(local_run_dir, "query.cxx"))
 
             # Extract the result.
             if type(result_rep) not in result_handlers:

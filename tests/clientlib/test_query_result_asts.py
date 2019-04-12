@@ -12,6 +12,10 @@ def test_TTree_columnNames_as_tuple():
     r = resultTTree(None, ('hi', 'here'))
     assert 2 == len(r.column_names)
 
+def test_TTree_columnNames_as_list():
+    r = resultTTree(None, ['hi', 'here'])
+    assert 2 == len(r.column_names)
+
 def test_TTree_columnNames_as_string():
     r = resultTTree(None, 'hi')
     assert 1 == len(r.column_names)

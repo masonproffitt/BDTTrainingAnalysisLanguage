@@ -13,12 +13,13 @@ class cpp_rep_base:
     This is an abstract class for the most part. Do not override things that aren't needed - that way the system will
     know when the user tries to do something that they shouldn't have.
     '''
-    def __init__(self, scope, is_pointer = False):
+    def __init__(self, scope, is_pointer = False, cpp_type=None):
         # Set to true when we represent an item in an interable type.
         self.is_iterable = False
         self._ast = None
         self._scope = scope
         self._is_pointer = is_pointer
+        self._cpp_type = cpp_type
 
     def is_pointer(self):
         return self._is_pointer
@@ -45,6 +46,9 @@ class cpp_rep_base:
         'Change the scope of this variable to something new.'
         self._scope = s
 
+    def cpp_type(self):
+        return self._cpp_type
+
 class cpp_variable(cpp_rep_base):
     r'''
     The representation for a simple variable.
@@ -60,9 +64,8 @@ class cpp_variable(cpp_rep_base):
         cpp_type - tye type of the variable, or implied (somehow)
         initial_value - if set, then it will be used to declare the variable and initially set it.
         '''
-        cpp_rep_base.__init__(self, scope, is_pointer=is_pointer)
+        cpp_rep_base.__init__(self, scope, is_pointer=is_pointer, cpp_type=cpp_type)
         self._cpp_name = name
-        self._cpp_type = cpp_type
         self._ast = None
         self._initial_value = initial_value
 
@@ -74,9 +77,6 @@ class cpp_variable(cpp_rep_base):
 
     def as_cpp(self):
         return self._cpp_name
-
-    def cpp_type(self):
-        return self._cpp_type
 
     def make_ast(self):
         self._ast = ast.Name(self.as_cpp(), ast.Load())
@@ -109,9 +109,8 @@ class cpp_constant(cpp_rep_base):
     Represents a constant
     '''
     def __init__(self, val, cpp_type = None):
-        cpp_rep_base.__init__(self, None, is_pointer=False)
+        cpp_rep_base.__init__(self, None, is_pointer=False, cpp_type=cpp_type)
         self._val = val
-        self._cpp_type = cpp_type
 
     def as_cpp(self):
         return self._val
@@ -123,9 +122,8 @@ class cpp_expression(cpp_rep_base):
     TODO: Does not yet automatically make an ast for this guy.
     '''
     def __init__(self, expr, iterator_var, scope, cpp_type=None, is_pointer = False, the_ast = None):
-        cpp_rep_base.__init__(self, scope, is_pointer=False)
+        cpp_rep_base.__init__(self, scope, is_pointer=False, cpp_type=cpp_type)
         self._expr = expr
-        self._cpp_type = cpp_type
         self._ast = ast
         self._iterator = iterator_var #.get_iterator_var() if iterator_var is not None else None
 
@@ -201,7 +199,7 @@ class cpp_iterator_over_collection(cpp_variable):
         iter - The iterator cpp_variable (or expression or whatever)
         scope - Scope where this is first valid as something like this.
         '''
-        cpp_variable.__init__(self, iter.name, scope)
+        cpp_variable.__init__(self, iter.as_cpp(), scope)
         self._iter = iter
 
     def iter(self):
@@ -211,3 +209,7 @@ class cpp_iterator_over_collection(cpp_variable):
         'Loop over this iterator.'
         # Unwrap one level
         return self._iter
+
+    def scope_of_iter_definition(self):
+        'Return the scope where this variable was defined'
+        return self._iter.scope_of_iter_definition()

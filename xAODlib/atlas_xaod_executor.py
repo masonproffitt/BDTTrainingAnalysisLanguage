@@ -570,8 +570,8 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.add_statement(statement.iftest(rep))
 
         # Finally, our result is basically what we had for the source.
-        new_loop_var = copy(loop_var)
-        new_loop_var.set_scope(self._gc.current_scope())
+        new_loop_var = cpp_expression(loop_var.as_cpp(), loop_var, self._gc.current_scope(), cpp_type=loop_var.cpp_type())
+        new_loop_var.is_iterable = loop_var.is_iterable
         node.rep = new_loop_var
         self._result = new_loop_var
 

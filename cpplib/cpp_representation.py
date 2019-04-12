@@ -52,13 +52,13 @@ class cpp_variable(cpp_rep_base):
 
     def __init__(self, name, scope, is_pointer=False, cpp_type = None, initial_value = None):
         '''
-        Craete a new variable
+        Create a new variable
 
         name - C++ name of the variable
         scope - Scope at which this variable is being defined
         is_pointer - True if we need to use -> to dereference it
         cpp_type - tye type of the variable, or implied (somehow)
-        inital_value - if set, then it will be used to declare the variable and initially set it.
+        initial_value - if set, then it will be used to declare the variable and initially set it.
         '''
         cpp_rep_base.__init__(self, scope, is_pointer=is_pointer)
         self._cpp_name = name

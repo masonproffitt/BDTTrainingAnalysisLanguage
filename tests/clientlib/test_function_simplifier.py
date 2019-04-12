@@ -9,7 +9,7 @@ sys.path.append('.')
 from clientlib.function_simplifier import simplify_chained_calls, convolute
 from clientlib.find_LINQ_operators import replace_LINQ_operators
 from clientlib.ast_util import lambda_unwrap
-from clientlib.call_stack import argument_stack
+from clientlib.call_stack import argument_stack, stack_frame
 import ast
 import copy
 
@@ -36,18 +36,17 @@ class normalize_ast(ast.NodeTransformer):
         a_mapping = [(a.arg, self.new_arg()) for a in node.args.args]
 
         # Remap everything that is inside this guy
-        self._arg_stack.push_stack_frame()
-        for m in a_mapping:
-            self._arg_stack.define_name(m[0],m[1])
-        body = self.visit(node.body)
-        self._arg_stack.pop_stack_frame()
+        with stack_frame(self._arg_stack):
+            for m in a_mapping:
+                self._arg_stack.define_name(m[0],m[1])
+            body = self.visit(node.body)
 
         # Rebuild the lambda guy
         args = [ast.arg(arg=m[1]) for m in a_mapping]
         return ast.Lambda(args=args, body=body)
 
     def visit_Name(self, node):
-        return self._arg_stack.lookup_name(node.id)
+        return ast.Name(self._arg_stack.lookup_name(node.id))
 
 def util_process(ast_in, ast_out):
     'Make sure ast in is the same as out after running through - this is a utility routine for the harness'

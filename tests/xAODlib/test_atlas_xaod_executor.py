@@ -77,13 +77,29 @@ def test_first_can_be_iterable():
         .AsROOTFile('dude') \
         .value()
 
+def test_first_after_selectmany():
+        MyEventStream() \
+        .Select('lambda e: e.Jets("jets").SelectMany(lambda j: e.Tracks("InnerTracks")).First()') \
+        .AsROOTFile('dude') \
+        .value()
+
+def test_first_after_where():
+    # Part of testing that First puts its outer settings in the right place.
+    # This also tests First on a collection of objects that hasn't been pulled a part
+    # in a select.
+    MyEventStream() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Where(lambda j: j.pt() > 10).First().pt()') \
+        .AsPandasDF('FirstJetPt') \
+        .value()
+
 def test_first_object_in_each_event():
     # Part of testing that First puts its outer settings in the right place.
+    # This also tests First on a collection of objects that hasn't been pulled a part
+    # in a select.
     MyEventStream() \
         .Select('lambda e: e.Jets("AntiKt4EMTopoJets").First().pt()/1000.0') \
         .AsPandasDF('FirstJetPt') \
         .value()
-#test_first_object_in_each_event()
 
 def test_Aggregate_per_jet():
     MyEventStream() \

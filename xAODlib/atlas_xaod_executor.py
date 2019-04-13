@@ -124,6 +124,9 @@ class query_ast_visitor(ast.NodeVisitor):
         if reset_result is not None:
             self._result = reset_result
 
+        # If it still didn't work, this is an internal error. But make the error message a bit nicer.
+        if not hasattr(node, 'rep'):
+            raise BaseException('Internal Error: attempted to get C++ representation for AST note "{0}", but failed.'.format(ast.dump(node)))
         return node.rep
 
     def get_rep_iterator(self, node):
@@ -145,27 +148,41 @@ class query_ast_visitor(ast.NodeVisitor):
             # Next, process the lambda's body.
             self.visit(call_node.func.body)
             
-    def assure_in_loop(self, collection):
+    def assure_in_loop(self, generation_ast):
         r'''
         Make sure that we are currently in a loop. For example, if we are
         looking at e.Jets.Aggregate then e.Jets hasn't started a loop. OTOH,
         looking at e.Jets.Select(j => j.pt).Aggregate, then we are already in
         a loop.
 
-        collection: representation of a C++ collection or transformed iterable.
+        generation_ast - The AST that will generate the collection (a call to something that
+                         returns a collection or a Select statement, etc.)
         '''
-        # Before we do anything, make sure we are at the proper place for doing this loop
-        self._gc.set_scope(collection.scope()) if collection.scope() is not None else None
+        # Get the representation of the collection. This will be one of several things:
+        #  - The collection itself (like a vector<..>)
+        #  - A variable that is already iterating over the collection.
+        #    For example, if the thing before caused a loop to be generated alread.
+        collection = self.get_rep(generation_ast)
 
-        # Now, if the collection is already something are iterating on, then
-        # we are done.
+        # Put ourselves at the proper level for this collection
+        if collection.scope() is not None:
+            self._gc.set_scope(collection.scope())
+
+        # If the collection is an iterator, then we are done.
+        # If the ast doesn't already have the rep set, then we should set it
+        # here.
         if collection.is_iterable:
+            if not hasattr(generation_ast, "rep_iter"):
+                generation_ast.rep_iter = collection
             return collection
 
-        # Nope - can we iterate on it (might crash due to user error)
+        # Since it isn't an iterator, it is a collection. Generate the
+        # loop.
         if not hasattr(collection, "loop_over_collection"):
             raise BaseException('Do not know how to loop over the expression "{0}" (with type info: {1}).'.format(collection.as_cpp(), collection.cpp_type()))
-        return collection.loop_over_collection(self._gc)
+        loop_var_rep = collection.loop_over_collection(self._gc)
+        generation_ast.rep_iter = loop_var_rep
+        return loop_var_rep
 
 
     def visit_Call_Aggregate(self, node):
@@ -221,12 +238,8 @@ class query_ast_visitor(ast.NodeVisitor):
         # Store the scope so we cna pop back to it.
         scope = self._gc.current_scope()
 
-        # Next, get the thing we are going to loop over, and generate the loop.
-        # Pull the result out of the main result guy
-        collection = self.get_rep(node.func.value)
-
-        # Iterate over it now. Make sure we are looping over this thing.
-        rep_iterator = self.assure_in_loop(collection)
+        # Generate the loop
+        rep_iterator = self.assure_in_loop(node.func.value)
 
         # If we have to use the first lambda to set the first value, then we need that code up front.
         if use_first_element_separately:
@@ -522,8 +535,7 @@ class query_ast_visitor(ast.NodeVisitor):
         'Transform the iterable from one form to another'
 
         # Make sure we are in a loop
-        s_rep = self.get_rep(select_ast.source)
-        loop_var = self.assure_in_loop(s_rep)
+        loop_var = self.assure_in_loop(select_ast.source)
 
         # Simulate this as a "call"
         selection = lambda_unwrap(select_ast.selection)
@@ -537,9 +549,11 @@ class query_ast_visitor(ast.NodeVisitor):
         # correctly. That done - we still want to make sure we are iterating over this guy.
         if rep.is_iterable:
             rep = cpp_iterator_over_collection(rep, rep.scope())
-        rep.is_iterable = True
+        else:
+            rep = copy(rep)
+            rep.is_iterable = True
         select_ast.rep = rep
-        select_ast.rep_iter = loop_var
+        select_ast.rep_iter = self.get_rep_iterator(select_ast.source)
         self._result = rep
 
     def visit_SelectMany(self, node):
@@ -551,21 +565,20 @@ class query_ast_visitor(ast.NodeVisitor):
         # call, and then visit it.
 
         c = ast.Call(func=lambda_unwrap(node.selection), args=[node.source])
-        rep_collection = self.get_rep(c)
 
         # Get the collection, and then generate the loop over it.
         # It could be that this comes back from something that is already iterating (like a Select statement),
         # in which case we are already looping.
-        rep_iterator = self.assure_in_loop(rep_collection)
+        rep_iterator = self.assure_in_loop(c)
 
         node.rep = rep_iterator
+        node.rep_iter = self.get_rep_iterator(c)
 
     def visit_Where(self, node):
         'Apply a filtering to the current loop.'
 
         # Make sure we are in a loop
-        s_rep = self.get_rep(node.source)
-        loop_var = self.assure_in_loop(s_rep)
+        loop_var = self.assure_in_loop(node.source)
 
         # Simulate the filtering call - we want the resulting value to test.
         filter = lambda_unwrap(node.filter)
@@ -576,17 +589,17 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.add_statement(statement.iftest(rep))
 
         # Finally, our result is basically what we had for the source.
-        new_loop_var = cpp_expression(loop_var.as_cpp(), loop_var, self._gc.current_scope(), cpp_type=loop_var.cpp_type())
+        new_loop_var = cpp_expression(loop_var.as_cpp(), loop_var, self._gc.current_scope(), cpp_type=loop_var.cpp_type(), is_pointer=loop_var.is_pointer())
         new_loop_var.is_iterable = loop_var.is_iterable
         node.rep = new_loop_var
+        node.rep_iter = new_loop_var
         self._result = new_loop_var
 
     def visit_First(self, node):
         'We are in a sequence. Take the first element of the sequence and use that for future things.'
 
         # Make sure we are in a loop.
-        s_rep = self.get_rep(node.source)
-        loop_var = self.assure_in_loop(s_rep)
+        loop_var = self.assure_in_loop(node.source)
 
         # The First terminal works by protecting the code with a if (first_time) {} block.
         # We need to declare the first_time variable outside the block where the thing we are

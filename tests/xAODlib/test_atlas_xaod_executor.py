@@ -38,9 +38,27 @@ class test_stream(ast.AST):
     def get_executor(self):
         return dummy_executor()
 
+class dummy_emitter:
+    def __init__ (self):
+        self.Lines = []
+
+    def add_line (self, l):
+        self.Lines += [l]
+
+    def process (self, func):
+        func(self)
+        return self
+        
 class MyEventStream(ObjectStream):
     def __init__ (self):
         ObjectStream.__init__(self, test_stream())
+
+def get_lines_of_code(executor):
+    'Return all lines of code'
+    qv = executor.QueryVisitor
+    d = dummy_emitter()
+    qv.emit_query(d)
+    return d.Lines
 
 ##############################
 # Tests that just make sure we can generate everything without a crash.
@@ -111,6 +129,7 @@ def test_First_Of_Select_is_not_array():
         .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0).Where(lambda jpt: jpt > 10.0).First()') \
         .AsPandasDF('FirstJetPt') \
         .value()
-    print (r)
-    # Check there is no push_back
-    assert True==False
+    # Check to see if there mention of push_back anywhere.
+    lines = get_lines_of_code(r)
+    print (lines)
+    assert all("push_back" not in l for l in lines)

@@ -38,10 +38,30 @@ class generated_code:
         'Declare a variable at the current scope'
         self._scope_stack[-1].declare_variable(v)
 
-    def add_statement(self, st):
-        self._scope_stack[-1].add_statement(st)
-        if isinstance(st, block):
-            self._scope_stack = self._scope_stack + (st,)
+    def add_statement(self, st, below = None):
+        '''
+        Add a statement. By default it is added to whereever the current
+        cursor/stack is pointing (to the end of the blow). If we are adding a new
+        block, then the cursor is update so future insertions to that block.
+
+        st - The statement to add
+        below - If not none, then the statement is added below the given statement,
+                and everything that was below is put inside the statement here. The
+                current point of insertion is not affected.
+        '''
+        if below is None:
+            self._scope_stack[-1].add_statement(st)
+            if isinstance(st, block):
+                self._scope_stack = self._scope_stack + (st,)
+        else:
+            if not isinstance(below, block):
+                raise BaseException("Internal Error: Can't a statement below a statement that isn't a scoping block.")
+            if not isinstance(st, block):
+                raise BaseException("Internal Error: Can't a statement that isn't a scoping block.")
+            for s in below._statements:
+                st.add_statement(s)
+            below._statements = []
+            below.add_statement(st)
 
     def add_include (self, path):
         self._include_files += [path]
@@ -59,7 +79,7 @@ class generated_code:
     def set_scope(self, scope_info):
         self._scope_stack = scope_info[0]
 
-    def add_book_statement(self, st):
+    def add_book_statement(self, st, below=None):
         self._book_block.add_statement(st)
 
     def emit_query_code(self, e):

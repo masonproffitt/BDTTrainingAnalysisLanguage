@@ -593,15 +593,19 @@ class query_ast_visitor(ast.NodeVisitor):
         # looping over here is defined. This is a little tricky, so we delegate to another method.
         loop_scope = self.get_rep_iterator(node.source).scope()
         outside_block_scope = loop_scope[0][-2]
+        block_scope = loop_scope[0][-1]
 
-        # Define the variable to track this
+        # Define the variable to track this outside that block.
         is_first = cpp_variable(unique_name('is_first'), None, cpp_type='bool', initial_value='true')
         outside_block_scope.declare_variable(is_first)
 
         # Now, as long as is_first is true, we can execute things inside this statement.
+        # The trick is putting the if statement in the right place. We need to locate it just one level
+        # below where we defined the scope above.
         s = statement.iftest(is_first)
-        self._gc.add_statement(s)
-        self._gc.add_statement(statement.set_var(is_first, cpp_constant('false', cpp_type='bool')))
+        s.add_statement(statement.set_var(is_first, cpp_constant('false', cpp_type='bool')))
+
+        self._gc.add_statement(s, below=block_scope)        
 
         # Finally, the result of first is the object that we are looping over.
         new_loop_var = copy(loop_var)

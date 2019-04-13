@@ -83,7 +83,7 @@ def test_first_object_in_each_event():
         .Select('lambda e: e.Jets("AntiKt4EMTopoJets").First().pt()/1000.0') \
         .AsPandasDF('FirstJetPt') \
         .value()
-test_first_object_in_each_event()
+#test_first_object_in_each_event()
 
 def test_Aggregate_per_jet():
     MyEventStream() \

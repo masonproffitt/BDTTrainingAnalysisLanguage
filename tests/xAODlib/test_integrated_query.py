@@ -47,9 +47,9 @@ def test_First_two_outer_loops():
             .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: e.Tracks("InDetTrackParticles").Where(lambda t: t.pt() > 1000.0)).First().Count()') \
             .AsPandasDF('dude') \
             .value()
-    assert training_df.iloc[0]['NTracks'] == 100
+    assert training_df.iloc[0]['dude'] == 693
 
-def test_First_object_in_event():
+def test_first_object_in_event():
     # Make sure First puts it if statement in the right place.
     training_df = f.AsATLASEvents() \
         .Select('lambda e: e.Jets("AntiKt4EMTopoJets").First().pt()/1000.0') \

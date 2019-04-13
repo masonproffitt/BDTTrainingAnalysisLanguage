@@ -36,7 +36,7 @@ class cpp_rep_base:
     
     def make_ast(self):
         'Create and fill the _ast variable with the ast for this rep'
-        raise BaseException("Subclasses need to implement this in as_ast")
+        raise BaseException("Internal Error: Subclasses need to implement this in as_ast")
 
     def scope(self):
         'Return the scope at which this representation was defined'
@@ -122,9 +122,9 @@ class cpp_expression(cpp_rep_base):
     TODO: Does not yet automatically make an ast for this guy.
     '''
     def __init__(self, expr, iterator_var, scope, cpp_type=None, is_pointer = False, the_ast = None):
-        cpp_rep_base.__init__(self, scope, is_pointer=False, cpp_type=cpp_type)
+        cpp_rep_base.__init__(self, scope, is_pointer=is_pointer, cpp_type=cpp_type)
         self._expr = expr
-        self._ast = ast
+        self._ast = the_ast
         self._iterator = iterator_var #.get_iterator_var() if iterator_var is not None else None
 
     def as_cpp(self):
@@ -147,6 +147,10 @@ class cpp_expression(cpp_rep_base):
         'Return the scope where this variable was defined'
         i = self.find_best_iterator()
         return i.scope_of_iter_definition() if i is not None else self.scope()
+        
+    def make_ast(self):
+        self._ast = ast.Name(self.as_cpp(), ast.Load())
+        self._ast.rep = self
 
 class cpp_collection(cpp_variable):
     r'''

@@ -588,11 +588,13 @@ class query_ast_visitor(ast.NodeVisitor):
         # Create an if statement
         self._gc.add_statement(statement.iftest(rep))
 
-        # Finally, our result is basically what we had for the source.
+        # Finally, our result is basically what we had for the source. Note that we
+        # need to keep the scoping the same for this iterator as our original iterator.
         new_loop_var = cpp_expression(loop_var.as_cpp(), loop_var, self._gc.current_scope(), cpp_type=loop_var.cpp_type(), is_pointer=loop_var.is_pointer())
         new_loop_var.is_iterable = loop_var.is_iterable
         node.rep = new_loop_var
-        node.rep_iter = new_loop_var
+        node.rep_iter = cpp_expression(loop_var.as_cpp(), loop_var, loop_var.scope(), cpp_type=loop_var.cpp_type(), is_pointer=loop_var.is_pointer())
+
         self._result = new_loop_var
 
     def visit_First(self, node):

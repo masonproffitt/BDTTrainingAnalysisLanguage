@@ -26,6 +26,7 @@ class dummy_executor(atlas_xaod_executor):
         'Got the result. Cache for use in tests'
         self.QueryVisitor = q_visitor
         self.ResultRep = result_rep
+        return self
 
 # Define a dataset we can use
 class test_stream(ast.AST):
@@ -45,16 +46,13 @@ class MyEventStream(ObjectStream):
 # Tests that just make sure we can generate everything without a crash.
 
 def test_per_event_item():
-    r = MyEventStream().Select('lambda e: e.EventInfo("EventInfo").runNumber()').AsROOTFile('RunNumber').value()
-    print ("hi", r)
+    MyEventStream().Select('lambda e: e.EventInfo("EventInfo").runNumber()').AsROOTFile('RunNumber').value()
 
 def test_func_sin_call():
-    r = MyEventStream().Select('lambda e: sin(e.EventInfo("EventInfo").runNumber())').AsROOTFile('RunNumber').value()
-    print ("hi", r)
+    MyEventStream().Select('lambda e: sin(e.EventInfo("EventInfo").runNumber())').AsROOTFile('RunNumber').value()
 
 def test_per_jet_item_as_call():
-    r = MyEventStream().SelectMany('lambda e: e.Jets("bogus")').Select('lambda j: j.pt()').AsROOTFile('dude').value()
-    print ("hi", r)
+    MyEventStream().SelectMany('lambda e: e.Jets("bogus")').Select('lambda j: j.pt()').AsROOTFile('dude').value()
 
 def test_first_jet_in_event():
     MyEventStream() \
@@ -78,7 +76,7 @@ def test_first_can_be_iterable():
         .value()
 
 def test_first_after_selectmany():
-        MyEventStream() \
+    MyEventStream() \
         .Select('lambda e: e.Jets("jets").SelectMany(lambda j: e.Tracks("InnerTracks")).First()') \
         .AsROOTFile('dude') \
         .value()
@@ -106,3 +104,13 @@ def test_Aggregate_per_jet():
         .Select("lambda e: e.Jets('AntiKt4EMTopoJets').Select(lambda j: j.pt()).Count()") \
         .AsROOTFile("n_jets") \
         .value()
+
+def test_First_Of_Select_is_not_array():
+    # The following statement should be a straight sequence, not an array.
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0).Where(lambda jpt: jpt > 10.0).First()') \
+        .AsPandasDF('FirstJetPt') \
+        .value()
+    print (r)
+    # Check there is no push_back
+    assert True==False

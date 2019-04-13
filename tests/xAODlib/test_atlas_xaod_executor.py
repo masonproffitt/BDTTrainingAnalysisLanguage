@@ -41,9 +41,17 @@ class test_stream(ast.AST):
 class dummy_emitter:
     def __init__ (self):
         self.Lines = []
+        self._indent_level = 0
 
     def add_line (self, l):
-        self.Lines += [l]
+        if l == '}':
+            self._indent_level -= 1
+
+        self.Lines += [
+            "{0}{1}".format("  " * self._indent_level, l)]
+
+        if l == '{':
+            self._indent_level += 1
 
     def process (self, func):
         func(self)
@@ -59,6 +67,31 @@ def get_lines_of_code(executor):
     d = dummy_emitter()
     qv.emit_query(d)
     return d.Lines
+
+def find_line_with(text, lines, throw_if_not_found = True):
+    'Find the first line with the text. Return its index, zero based'
+    for index, l in enumerate(lines):
+        if text in l:
+            return index
+    if throw_if_not_found:
+        raise BaseException("Unable to find text '{0}' in any lines in text output".format(text))
+    return -1
+
+def print_lines(lines):
+    for l in lines:
+        print(l)
+
+def find_next_closing_bracket(lines):
+    'Find the next closing bracket. If there is an opening one, then track through to the matching closing one.'
+    depth = 0
+    for index, l in enumerate(lines):
+        if l == "{":
+            depth += 1
+        if l == "}":
+            depth -= 1
+            if depth < 0:
+                return index
+    return -1
 
 ##############################
 # Tests that just make sure we can generate everything without a crash.
@@ -78,6 +111,51 @@ def test_first_jet_in_event():
         .AsROOTFile('dude') \
         .value()
 
+def test_count_after_single_sequence():
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AllMyJets").Select(lambda j: j.pt()).Count()') \
+        .AsROOTFile('dude') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    # Make sure there is just one for loop in here.
+    assert 1 == ["for" in l for l in lines].count(True)
+    # Make sure the +1 happens after the for, and before another } bracket.
+    num_for = find_line_with("for", lines)
+    num_inc = find_line_with("+1", lines[num_for:])
+    num_close = find_next_closing_bracket(lines[num_for:])
+    assert num_close > num_inc
+
+def test_count_after_double_sequence():
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AllMyJets").SelectMany(lambda j: e.Tracks("InnerTracks")).Count()') \
+        .AsROOTFile('dude') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    # Make sure there is just one for loop in here.
+    assert 1 == ["for" in l for l in lines].count(True)
+    # Make sure the +1 happens after the for, and before another } bracket.
+    num_for = find_line_with("for", lines)
+    num_inc = find_line_with("+1", lines[num_for:])
+    num_close = find_next_closing_bracket(lines[num_for:])
+    assert num_close > num_inc
+
+def test_count_after_single_sequence_of_sequence():
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AllMyJets").Select(lambda j: e.Tracks("InnerTracks")).Count()') \
+        .AsROOTFile('dude') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    # Make sure there is just one for loop in here.
+    assert 1 == ["for" in l for l in lines].count(True)
+    # Make sure the +1 happens after the for, and before another } bracket.
+    num_for = find_line_with("for", lines)
+    num_inc = find_line_with("+1", lines[num_for:])
+    num_close = find_next_closing_bracket(lines[num_for:])
+    assert num_close > num_inc
+
 def test_first_can_be_iterable_after_where():
     # This was found while trying to generate a tuple for some training, below, simplified.
     # The problem was that First() always returned something you weren't allowed to iterate over. Which is not what we want here.
@@ -85,6 +163,7 @@ def test_first_can_be_iterable_after_where():
         .Select('lambda e: e.Jets("AllMyJets").Select(lambda j: e.Tracks("InnerTracks").Where(lambda t: t.pt() > 1000.0)).First().Count()') \
         .AsROOTFile('dude') \
         .value()
+#test_first_can_be_iterable_after_where()
 
 def test_first_can_be_iterable():
     # Make sure a First() here gets called back correctly and generated.
@@ -131,5 +210,17 @@ def test_First_Of_Select_is_not_array():
         .value()
     # Check to see if there mention of push_back anywhere.
     lines = get_lines_of_code(r)
-    print (lines)
+    print_lines(lines)
     assert all("push_back" not in l for l in lines)
+
+def test_First_Of_Select_After_Where_is_in_right_place():
+    # Make sure that we have the "First" predicate after if Where's if statement.
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0).Where(lambda jpt: jpt > 10.0).First()') \
+        .AsPandasDF('FirstJetPt') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    l = find_line_with(">10.0", lines)
+    # Look for the "false" that First uses to remember it has gone by one.
+    assert find_line_with("false", lines[l:], throw_if_not_found=False) > 0

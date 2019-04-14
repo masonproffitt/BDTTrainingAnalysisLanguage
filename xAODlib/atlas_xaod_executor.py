@@ -132,7 +132,7 @@ class query_ast_visitor(ast.NodeVisitor):
     def get_rep_iterator(self, node):
         'For nodes that are generating sequences, returns the iterator attached'
         _ = self.get_rep(node)
-        return node.rep_iter
+        return node.rep_iter if hasattr(node, 'rep_iter') else None
 
     def resolve_id(self, id):
         'Look up the in our local dict'
@@ -157,32 +157,38 @@ class query_ast_visitor(ast.NodeVisitor):
 
         generation_ast - The AST that will generate the collection (a call to something that
                          returns a collection or a Select statement, etc.)
+
+        iterator:       This is the collection or iterator that is in the inside of the loop.
+                        If this has been modified by a Select statement, for example, then return
+                        the thing that points to that.
+        loop_var:       The variable that is the loop we are running over. If this is the top level of a loop
+                        this would be the same as `iterator`.
         '''
         # Get the representation of the collection. This will be one of several things:
         #  - The collection itself (like a vector<..>)
         #  - A variable that is already iterating over the collection.
-        #    For example, if the thing before caused a loop to be generated alread.
-        collection = self.get_rep(generation_ast)
+        #    For example, if the thing before caused a loop to be generated already.
+        # If we have an associated loop variable, then are set, and we can return it all.
+        loop_var = self.get_rep_iterator(generation_ast)
+        c_iter = self.get_rep(generation_ast)
+        if loop_var is not None:
+            return (c_iter, loop_var)
 
-        # Put ourselves at the proper level for this collection
-        if collection.scope() is not None:
-            self._gc.set_scope(collection.scope())
+        # So, no loop variable. If the iterator is iterable, then
+        # there should have been an iterator.
+        if c_iter.is_iterable:
+            raise BaseException("Internal Error: A variable that can iterate, but no partner loop variable ('{0}')".format(c_iter.as_cpp()))
 
-        # If the collection is an iterator, then we are done.
-        # If the ast doesn't already have the rep set, then we should set it
-        # here.
-        if collection.is_iterable:
-            if not hasattr(generation_ast, "rep_iter"):
-                generation_ast.rep_iter = collection
-            return collection
+        # Last ditch effort - try to generate a loop over the thing. In short, this is a collection that
+        # can be iterated over.
+        # In this case the iterator and the loop variable are the same.
+        if not hasattr(c_iter, "loop_over_collection"):
+            # Make the error message a bit more understandable.
+            raise BaseException('Do not know how to loop over the expression "{0}" (with type info: {1}).'.format(c_iter.as_cpp(), c_iter.cpp_type()))
 
-        # Since it isn't an iterator, it is a collection. Generate the
-        # loop.
-        if not hasattr(collection, "loop_over_collection"):
-            raise BaseException('Do not know how to loop over the expression "{0}" (with type info: {1}).'.format(collection.as_cpp(), collection.cpp_type()))
-        loop_var_rep = collection.loop_over_collection(self._gc)
-        generation_ast.rep_iter = loop_var_rep
-        return loop_var_rep
+        c_loop_var = c_iter.loop_over_collection(self._gc)
+        generation_ast.rep_iter = c_loop_var
+        return (c_loop_var, c_loop_var)
 
 
     def visit_Call_Aggregate(self, node):
@@ -206,7 +212,6 @@ class query_ast_visitor(ast.NodeVisitor):
         use_first_element_separately = False
         agg_lambda = None
         init_lambda = None
-        init_val = None
         if len(node.args) == 1:
             agg_lambda = node.args[0]
             use_first_element_separately = True
@@ -221,25 +226,24 @@ class query_ast_visitor(ast.NodeVisitor):
         else:
             raise BaseException('Aggregate can have only one or two arguments')
 
-        # Declare the thing that will be a result, and make sure everything above knows about it.
-        result = cpp_variable(unique_name("aggResult"), self._gc.current_scope(), cpp_type="float")
-        self._gc.declare_variable(result)
+        # Get all the looping information
+        (c_iter, c_loop) = self.assure_in_loop(node.func.value)
+
+        # We need to store the result. It should be outside the loop variable we are looping over.
+        decl_block_scope = (c_loop.scope()[0][:-1],)
+        decl_block = decl_block_scope[0][-1]
+        result = cpp_variable(unique_name("aggResult"), decl_block_scope, cpp_type="float", initial_value="0" if not use_first_element_separately else None)
+        decl_block.declare_variable(result)
 
         # We have to initialized the variable to some value, and it depends on how the user
-        # is trying to initialize things - first iteration or with a value.
+        # is trying to initialize things - first iteration or with a value. We've done the value case above.
         is_first_iter = None
         if use_first_element_separately:
-            is_first_iter = cpp_variable(unique_name("is_first"), self._gc.current_scope(), cpp_type="bool")
-            self._gc.declare_variable(is_first_iter)
-            self._gc.add_statement(statement.set_var(is_first_iter, cpp_constant("true")))
-        else:
-            self._gc.add_statement(statement.set_var(result, self.get_rep(init_val)))
+            is_first_iter = cpp_variable(unique_name("is_first"), self._gc.current_scope(), cpp_type="bool", initial_value='true')
+            decl_block.declare_variable(is_first_iter)
 
-        # Store the scope so we cna pop back to it.
-        scope = self._gc.current_scope()
-
-        # Generate the loop
-        rep_iterator = self.assure_in_loop(node.func.value)
+        # Now we need to emit code at the accumulator level.
+        self._gc.set_scope(c_loop.scope())
 
         # If we have to use the first lambda to set the first value, then we need that code up front.
         if use_first_element_separately:
@@ -249,21 +253,21 @@ class query_ast_visitor(ast.NodeVisitor):
             first_scope = self._gc.current_scope()
 
             if init_lambda is not None:
-                call = ast.Call(init_lambda, [rep_iterator.as_ast()])
+                call = ast.Call(init_lambda, [c_iter.as_ast()])
                 self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
             else:
-                self._gc.add_statement(statement.set_var(result, rep_iterator))
+                self._gc.add_statement(statement.set_var(result, c_iter))
 
             self._gc.set_scope(first_scope)
             self._gc.pop_scope()
             self._gc.add_statement(statement.elsephrase())
 
         # Perform the aggregation function. We need to call it with the value and the accumulator.
-        call = ast.Call(func=agg_lambda, args=[result.as_ast(), rep_iterator.as_ast()])
+        call = ast.Call(func=agg_lambda, args=[result.as_ast(), c_iter.as_ast()])
         self._gc.add_statement(statement.set_var(result, self.get_rep(call)))
 
-        # Finally, pop the whole thing off.
-        self._gc.set_scope(scope)
+        # Finally, since this is a terminal, we need to pop off the top.
+        self._gc.set_scope(decl_block_scope)
 
         # Cache the results in our result incase we are skipping nodes in the AST.
         node.rep = result
@@ -483,22 +487,22 @@ class query_ast_visitor(ast.NodeVisitor):
         # For each varable we need to save, cache it or push it back, depending.
         # Make sure that it happens at the proper scope, where what we are after is defined!
         s_orig = self._gc.current_scope()
-        for e in zip(v_rep, var_names):
+        for e_rep,e_name in zip(v_rep, var_names):
             # Set the scope. Normally we want to do it where the variable was calculated
             # (think of cases when you have to calculate something with a `push_back`),
             # but if the variable was already calculated, we want to make sure we are at least
             # in the same scope as the tree fill.
-            if scope_is_deeper(e[0].scope(), v_rep_not_norm.scope()):
+            if scope_is_deeper(e_rep.scope(), v_rep_not_norm.scope()):
                 self._gc.set_scope(v_rep_not_norm.scope())
             else:
-                self._gc.set_scope(e[0].scope())
+                self._gc.set_scope(e_rep.scope())
 
             # If the variable is something we are iterating over, then fill it, otherwise,
             # just set it.
-            if e[0].is_iterable:
-                self._gc.add_statement(statement.push_back(e[1][1], e[0]))
+            if e_rep.is_iterable:
+                self._gc.add_statement(statement.push_back(e_name[1], e_rep))
             else:
-                self._gc.add_statement(statement.set_var(e[1][1], e[0]))
+                self._gc.add_statement(statement.set_var(e_name[1], e_rep))
 
         # The fill statement. This should happen at the scope where the tuple was defined.
         self._gc.set_scope(v_rep_not_norm.scope())
@@ -535,11 +539,14 @@ class query_ast_visitor(ast.NodeVisitor):
         'Transform the iterable from one form to another'
 
         # Make sure we are in a loop
-        loop_var = self.assure_in_loop(select_ast.source)
+        (c_iter, _) = self.assure_in_loop(select_ast.source)
+
+        # Remember the scope so that we can make sure we are still at this level when we come back.
+        start_scope = self._gc.current_scope()
 
         # Simulate this as a "call"
         selection = lambda_unwrap(select_ast.selection)
-        c = ast.Call(func=selection, args=[loop_var.as_ast()])
+        c = ast.Call(func=selection, args=[c_iter.as_ast()])
         rep = self.get_rep(c)
 
         # Now, we need to mark this as iterable. But this is a little tricky how this is done.
@@ -555,6 +562,10 @@ class query_ast_visitor(ast.NodeVisitor):
         select_ast.rep = rep
         select_ast.rep_iter = self.get_rep_iterator(select_ast.source)
         self._result = rep
+
+        # Finally, we should be at the same basic scoping level as we were when we started. We aren't
+        # supposed to be going down a loop in here.
+        self._gc.set_scope(start_scope)
 
     def visit_SelectMany(self, node):
         r'''
@@ -574,20 +585,20 @@ class query_ast_visitor(ast.NodeVisitor):
         # Get the collection, and then generate the loop over it.
         # It could be that this comes back from something that is already iterating (like a Select statement),
         # in which case we are already looping.
-        rep_iterator = self.assure_in_loop(c)
+        (c_iter, c_loop)  = self.assure_in_loop(c)
 
-        node.rep = rep_iterator
+        node.rep = c_iter
         node.rep_iter = self.get_rep_iterator(c)
 
     def visit_Where(self, node):
         'Apply a filtering to the current loop.'
 
         # Make sure we are in a loop
-        loop_var = self.assure_in_loop(node.source)
+        (c_iter, c_loop) = self.assure_in_loop(node.source)
 
         # Simulate the filtering call - we want the resulting value to test.
         filter = lambda_unwrap(node.filter)
-        c = ast.Call(func=filter, args=[loop_var.as_ast()])
+        c = ast.Call(func=filter, args=[c_iter.as_ast()])
         rep = self.get_rep(c)
 
         # Create an if statement
@@ -595,10 +606,10 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # Finally, our result is basically what we had for the source. Note that we
         # need to keep the scoping the same for this iterator as our original iterator.
-        new_loop_var = cpp_expression(loop_var.as_cpp(), loop_var, self._gc.current_scope(), cpp_type=loop_var.cpp_type(), is_pointer=loop_var.is_pointer())
-        new_loop_var.is_iterable = loop_var.is_iterable
+        new_loop_var = cpp_expression(c_iter.as_cpp(), c_iter, self._gc.current_scope(), cpp_type=c_iter.cpp_type(), is_pointer=c_iter.is_pointer())
+        new_loop_var.is_iterable = c_iter.is_iterable
         node.rep = new_loop_var
-        node.rep_iter = cpp_expression(loop_var.as_cpp(), loop_var, loop_var.scope(), cpp_type=loop_var.cpp_type(), is_pointer=loop_var.is_pointer())
+        node.rep_iter = c_loop
 
         self._result = new_loop_var
 
@@ -606,14 +617,13 @@ class query_ast_visitor(ast.NodeVisitor):
         'We are in a sequence. Take the first element of the sequence and use that for future things.'
 
         # Make sure we are in a loop.
-        loop_var = self.assure_in_loop(node.source)
+        (c_iter, c_loop) = self.assure_in_loop(node.source)
 
         # The First terminal works by protecting the code with a if (first_time) {} block.
         # We need to declare the first_time variable outside the block where the thing we are
         # looping over here is defined. This is a little tricky, so we delegate to another method.
         loop_scope = self.get_rep_iterator(node.source).scope()
-        outside_block_scope = loop_scope[0][-2]
-        block_scope = loop_scope[0][-1]
+        outside_block_scope = loop_scope[0][-1]
 
         # Define the variable to track this outside that block.
         is_first = cpp_variable(unique_name('is_first'), None, cpp_type='bool', initial_value='true')
@@ -625,16 +635,15 @@ class query_ast_visitor(ast.NodeVisitor):
         s = statement.iftest(is_first)
         s.add_statement(statement.set_var(is_first, cpp_constant('false', cpp_type='bool')))
 
-        self._gc.add_statement(s, below=block_scope)        
+        self._gc.add_statement(s)        
 
         # Finally, the result of first is the object that we are looping over.
-        new_loop_var = copy(loop_var)
+        new_loop_var = copy(c_iter)
         new_loop_var.is_iterable = False
         new_loop_var.set_scope(self._gc.current_scope())
 
         node.rep = new_loop_var
         self._result = new_loop_var
-
 
 class cpp_source_emitter:
     r'''

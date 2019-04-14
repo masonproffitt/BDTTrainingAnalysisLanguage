@@ -37,6 +37,7 @@ class test_stream(ast.AST):
         self.rep = cpp_variable("bogus-do-not-use", scope=None)
         self.rep.is_iterable = True # No need to build up a new loop - implied!
         self.rep._ast = self # So that we get used properly when passed on.
+        self.rep_iter = cpp_variable("bogus-event-level-iterator-do-not-use", scope=([],))
 
     def get_executor(self):
         return dummy_executor()
@@ -88,13 +89,25 @@ def find_next_closing_bracket(lines):
     'Find the next closing bracket. If there is an opening one, then track through to the matching closing one.'
     depth = 0
     for index, l in enumerate(lines):
-        if l == "{":
+        if l.strip() == "{":
             depth += 1
-        if l == "}":
+        if l.strip() == "}":
             depth -= 1
             if depth < 0:
                 return index
     return -1
+
+def find_open_blocks(lines):
+    'Search through and record the lines before a {. If a { is closed, then remove that lines'
+    stack = []
+    last_line_seen = 'xxx-xxx-xxx'
+    for l in lines:
+        if l.strip() == '{':
+            stack += [last_line_seen]
+        elif l.strip() == '}':
+            stack = stack[:-1]
+        last_line_seen = l
+    return stack
 
 ##############################
 # Tests that just make sure we can generate everything without a crash.
@@ -183,6 +196,38 @@ def test_count_after_single_sequence_of_sequence():
     print_lines(lines)
     # Make sure there is just one for loop in here.
     assert 1 == ["for" in l for l in lines].count(True)
+    # Make sure the +1 happens after the for, and before another } bracket.
+    num_for = find_line_with("for", lines)
+    num_inc = find_line_with("+1", lines[num_for:])
+    num_close = find_next_closing_bracket(lines[num_for:])
+    assert num_close > num_inc
+
+def test_count_after_single_sequence_of_sequence_unwound():
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AllMyJets").Select(lambda j: e.Tracks("InnerTracks")).SelectMany(lambda ts: ts).Count()') \
+        .AsROOTFile('dude') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    # Make sure there is just one for loop in here.
+    assert 2 == ["for" in l for l in lines].count(True)
+    # Make sure the +1 happens after the for, and before another } bracket.
+    num_for = find_line_with("for", lines)
+    num_inc = find_line_with("+1", lines[num_for:])
+    num_close = find_next_closing_bracket(lines[num_for:])
+    assert num_close > num_inc
+
+def test_count_after_single_sequence_of_sequence_with_useless_where():
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AllMyJets").Select(lambda j: e.Tracks("InnerTracks").Where(lambda pt: pt > 10.0)).Count()') \
+        .AsROOTFile('dude') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    # Make sure there is just one for loop in here.
+    l_increment = find_line_with('+1', lines)
+    block_headers = find_open_blocks(lines[:l_increment])
+    assert 1 == ["for" in l for l in block_headers].count(True)
     # Make sure the +1 happens after the for, and before another } bracket.
     num_for = find_line_with("for", lines)
     num_inc = find_line_with("+1", lines[num_for:])

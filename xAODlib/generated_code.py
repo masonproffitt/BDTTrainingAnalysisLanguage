@@ -77,7 +77,13 @@ class generated_code:
         return (self._scope_stack,)
 
     def set_scope(self, scope_info):
-        self._scope_stack = scope_info[0]
+        'Set the scope to a previously cached value'
+
+        # If this is a top level set, detect that.
+        if len(scope_info[0]) == 0:
+            self._scope_stack =  (self._block,)
+        else:
+            self._scope_stack = scope_info[0]
 
     def add_book_statement(self, st, below=None):
         self._book_block.add_statement(st)

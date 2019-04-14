@@ -46,11 +46,17 @@ result_handlers = {
         rh.cpp_pandas_rep: rh.extract_pandas_result,
 }
 
+def rep_is_collection(rep):
+    'Return true if the representation points to a collection'
+    if type(rep) is cpp_iterator_over_collection:
+        return True
+    return False
+
 def type_of_rep(rep):
     '''
     Return a float unless it is an iterable. Then it is a vector of float.
     '''
-    if rep.is_iterable:
+    if rep_is_collection(rep):
         return "std::vector<float>"
     return "float"
 
@@ -503,13 +509,13 @@ class query_ast_visitor(ast.NodeVisitor):
 
             # If the variable is something we are iterating over, then fill it, otherwise,
             # just set it.
-            if e_rep.is_iterable:
+            if rep_is_collection(e_rep):
                 self._gc.add_statement(statement.push_back(e_name[1], e_rep))
             else:
                 self._gc.add_statement(statement.set_var(e_name[1], e_rep))
 
         # The fill statement. This should happen at the scope where the tuple was defined.
-        self._gc.set_scope(v_rep_not_norm.scope())
+        self._gc.set_scope(self.get_rep_iterator(node.source).scope())
         self._gc.add_statement(statement.ttree_fill(tree_name))
         for e in zip(v_rep, var_names):
             if e[0].is_iterable:
@@ -543,7 +549,7 @@ class query_ast_visitor(ast.NodeVisitor):
         'Transform the iterable from one form to another'
 
         # Make sure we are in a loop
-        (c_iter, _) = self.assure_in_loop(select_ast.source)
+        (c_iter, loop_var) = self.assure_in_loop(select_ast.source)
 
         # Remember the scope so that we can make sure we are still at this level when we come back.
         start_scope = self._gc.current_scope()
@@ -558,9 +564,12 @@ class query_ast_visitor(ast.NodeVisitor):
         # can just mark it. However, if this is already a sequence, then we are doing a sequence
         # of a sequence. So we need to create a new guy for that so that we can deal with the loop
         # correctly. That done - we still want to make sure we are iterating over this guy.
+        # There is a final special case - if this is at the top level of an event, then this
+        # isn't iterable - there is only one of these per event (even if there are many per
+        # file)
         if rep.is_iterable:
             rep = cpp_iterator_over_collection(rep, rep.scope())
-        else:
+        elif len(loop_var.scope()[0]) > 0:
             rep = copy(rep)
             rep.is_iterable = True
         select_ast.rep = rep

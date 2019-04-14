@@ -290,6 +290,23 @@ def test_First_Of_Select_is_not_array():
     lines = get_lines_of_code(r)
     print_lines(lines)
     assert all("push_back" not in l for l in lines)
+    l_push_back = find_line_with("Fill()", lines)
+    active_blocks = find_open_blocks(lines[:l_push_back])
+    assert 0==[(("for" in a) or ("if" in a)) for a in active_blocks].count(True)
+
+def test_Select_is_an_array():
+    # The following statement should be a straight sequence, not an array.
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0).Where(lambda jpt: jpt > 10.0)') \
+        .AsPandasDF('JetPts') \
+        .value()
+    # Check to see if there mention of push_back anywhere.
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    assert 1==["push_back" in l for l in lines].count(True)
+    l_push_back = find_line_with("Fill()", lines)
+    active_blocks = find_open_blocks(lines[:l_push_back])
+    assert 0==["for" in a for a in active_blocks].count(True)
 
 def test_First_Of_Select_After_Where_is_in_right_place():
     # Make sure that we have the "First" predicate after if Where's if statement.

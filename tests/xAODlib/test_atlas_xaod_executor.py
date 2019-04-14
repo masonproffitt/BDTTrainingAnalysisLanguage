@@ -1,6 +1,9 @@
 # Test of the executor
 # Eventually this will probably have to be split into several bits, as this is quite
 # a bit of code to test. But for now...
+# WARNING: this code can be a bit fragile - as it is relying on how the C++ code is generated, and that
+# can change w/out there being any functional change... But these tests run in miliseconds compared to the actual running
+# against data where a single test can take 30 seconds.
 
 # Following two lines necessary b.c. I can't figure out how to get pytest to pick up the python path correctly
 # despite reading a bunch of docs.
@@ -126,6 +129,21 @@ def test_count_after_single_sequence():
     num_close = find_next_closing_bracket(lines[num_for:])
     assert num_close > num_inc
 
+def test_count_after_single_sequence_with_filter():
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AllMyJets").Select(lambda j: j.pt()).Where(lambda jpt: jpt>10.0).Count()') \
+        .AsROOTFile('dude') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    # Make sure there is just one for loop in here.
+    assert 1 == ["for" in l for l in lines].count(True)
+    # Make sure the +1 happens after the for, and before another } bracket.
+    num_for = find_line_with("if", lines)
+    num_inc = find_line_with("+1", lines[num_for:])
+    num_close = find_next_closing_bracket(lines[num_for:])
+    assert num_close > num_inc
+
 def test_count_after_double_sequence():
     r = MyEventStream() \
         .Select('lambda e: e.Jets("AllMyJets").SelectMany(lambda j: e.Tracks("InnerTracks")).Count()') \
@@ -134,9 +152,24 @@ def test_count_after_double_sequence():
     lines = get_lines_of_code(r)
     print_lines(lines)
     # Make sure there is just one for loop in here.
-    assert 1 == ["for" in l for l in lines].count(True)
+    assert 2 == ["for" in l for l in lines].count(True)
     # Make sure the +1 happens after the for, and before another } bracket.
     num_for = find_line_with("for", lines)
+    num_inc = find_line_with("+1", lines[num_for:])
+    num_close = find_next_closing_bracket(lines[num_for:])
+    assert num_close > num_inc
+
+def test_count_after_double_sequence_with_filter():
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AllMyJets").SelectMany(lambda j: e.Tracks("InnerTracks").Where(lambda t: t.pt()>10.0)).Count()') \
+        .AsROOTFile('dude') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    # Make sure there is just one for loop in here.
+    assert 2 == ["for" in l for l in lines].count(True)
+    # Make sure the +1 happens after the for, and before another } bracket.
+    num_for = find_line_with("if", lines)
     num_inc = find_line_with("+1", lines[num_for:])
     num_close = find_next_closing_bracket(lines[num_for:])
     assert num_close > num_inc

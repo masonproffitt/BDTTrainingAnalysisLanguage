@@ -561,6 +561,11 @@ class query_ast_visitor(ast.NodeVisitor):
         Apply the selection function to the base to generate a collection, and then
         loop over that collection.
         '''
+        # Make sure the source is around. We have to do this because code generation in this
+        # framework is lazy. And if the `selection` function does not use the source, and
+        # looking at that source might generate a loop, that loop won't be generated! Ops!
+        self.assure_in_loop(node.source)
+
         # We need to "call" the source with the function. So build up a new
         # call, and then visit it.
 

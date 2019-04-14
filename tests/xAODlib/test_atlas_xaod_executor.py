@@ -34,10 +34,9 @@ class dummy_executor(atlas_xaod_executor):
 # Define a dataset we can use
 class test_stream(ast.AST):
     def __init__ (self):
-        self.rep = cpp_variable("bogus-do-not-use", scope=None)
+        self.rep = cpp_variable("bogus-do-not-use", scope=([],))
         self.rep.is_iterable = True # No need to build up a new loop - implied!
         self.rep._ast = self # So that we get used properly when passed on.
-        self.rep_iter = cpp_variable("bogus-event-level-iterator-do-not-use", scope=([],))
 
     def get_executor(self):
         return dummy_executor()
@@ -123,7 +122,6 @@ def test_func_sin_call():
 
 def test_per_jet_item_as_call():
     MyEventStream().SelectMany('lambda e: e.Jets("bogus")').Select('lambda j: j.pt()').AsROOTFile('dude').value()
-test_per_jet_item_as_call()
 
 def test_first_jet_in_event():
     MyEventStream() \

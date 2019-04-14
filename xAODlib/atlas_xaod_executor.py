@@ -4,7 +4,7 @@ import xAODlib.statement as statement
 from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
 from cpplib.cpp_vars import unique_name
 import cpplib.cpp_ast as cpp_ast
-from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple, cpp_iterator_over_collection, cpp_constant
+from cpplib.cpp_representation import cpp_variable, cpp_collection, cpp_expression, cpp_tuple, cpp_iterator_over_collection, cpp_constant, cpp_forward_capture
 import xAODlib.result_handlers as rh
 import clientlib.query_result_asts as query_result_asts
 from clientlib.call_stack import argument_stack, stack_frame
@@ -139,8 +139,8 @@ class query_ast_visitor(ast.NodeVisitor):
 
     def get_rep_iterator(self, node):
         'For nodes that are generating sequences, returns the iterator attached'
-        _ = self.get_rep(node)
-        return node.rep_iter if hasattr(node, 'rep_iter') else None
+        r = self.get_rep(node)
+        return r.find_best_iterator()
 
     def resolve_id(self, id):
         'Look up the in our local dict'
@@ -156,8 +156,6 @@ class query_ast_visitor(ast.NodeVisitor):
             # Next, process the lambda's body.
             call_node.rep = self.get_rep(call_node.func.body)
             lp = self.get_rep_iterator(call_node.func.body)
-            if lp is not None:
-                call_node.rep_iter = lp
         
             
     def assure_in_loop(self, generation_ast):
@@ -476,11 +474,13 @@ class query_ast_visitor(ast.NodeVisitor):
         '''
         # Get the representations for each variable.
         self.generic_visit(node)
-        v_rep_not_norm = self.get_rep(node.source)
+        (v_rep_not_norm, v_loop) = self.assure_in_loop(node.source)
+        #v_rep_not_norm = self.get_rep(node.source)
+        v_rep_not_norm = v_rep_not_norm.get_underlying_object()
         v_rep = v_rep_not_norm.tup() if type(v_rep_not_norm) is cpp_tuple else (v_rep_not_norm,)
 
         # Check for something weird, like a 2D array.
-        if (type(v_rep_not_norm) is cpp_iterator_over_collection) and (type(v_rep_not_norm.iter()) is cpp_tuple):
+        if (type(v_rep_not_norm) is cpp_iterator_over_collection) and (type(v_rep_not_norm.iter().get_underlying_object()) is cpp_tuple):
             raise BaseException("Looks like you have asked for a 2D array which is not yet supported (you have a tuple inside a select sequence)")
 
         # Make sure the number of items is the same as the number of columns specified.
@@ -523,7 +523,8 @@ class query_ast_visitor(ast.NodeVisitor):
                 self._gc.add_statement(statement.set_var(e_name[1], e_rep))
 
         # The fill statement. This should happen at the scope where the tuple was defined.
-        self._gc.set_scope(self.get_rep_iterator(node.source).scope())
+        defined_scope = self.get_rep_iterator(node.source)
+        self._gc.set_scope(defined_scope.scope() if defined_scope is not None else ([],))
         self._gc.add_statement(statement.ttree_fill(tree_name))
         for e in zip(v_rep, var_names):
             if rep_is_collection(e[0]):
@@ -576,12 +577,14 @@ class query_ast_visitor(ast.NodeVisitor):
         # isn't iterable - there is only one of these per event (even if there are many per
         # file)
         if rep.is_iterable:
-            rep = cpp_iterator_over_collection(rep, rep.scope())
+            rep = cpp_iterator_over_collection(rep, rep.scope(), parent_iterator=loop_var)
         elif len(loop_var.scope()[0]) > 0:
-            rep = copy(rep)
+            rep = cpp_forward_capture(rep, loop_var, loop_var.scope(), cpp_type=rep.cpp_type(), is_pointer=rep.is_pointer(), the_ast=rep.as_ast())
             rep.is_iterable = True
+        else:
+            # Just need to reset the scope here.
+            rep = cpp_forward_capture(rep, loop_var, loop_var.scope(), cpp_type=rep.cpp_type(), is_pointer=rep.is_pointer(), the_ast=rep.as_ast())
         select_ast.rep = rep
-        select_ast.rep_iter = self.get_rep_iterator(select_ast.source)
         self._result = rep
 
         # Finally, we should be at the same basic scoping level as we were when we started. We aren't
@@ -609,7 +612,6 @@ class query_ast_visitor(ast.NodeVisitor):
         (c_iter, c_loop)  = self.assure_in_loop(c)
 
         node.rep = c_iter
-        node.rep_iter = self.get_rep_iterator(c)
 
     def visit_Where(self, node):
         'Apply a filtering to the current loop.'
@@ -627,10 +629,9 @@ class query_ast_visitor(ast.NodeVisitor):
 
         # Finally, our result is basically what we had for the source. Note that we
         # need to keep the scoping the same for this iterator as our original iterator.
-        new_loop_var = cpp_expression(c_iter.as_cpp(), c_iter, self._gc.current_scope(), cpp_type=c_iter.cpp_type(), is_pointer=c_iter.is_pointer())
+        new_loop_var = cpp_expression(c_iter.as_cpp(), c_loop, self._gc.current_scope(), cpp_type=c_iter.cpp_type(), is_pointer=c_iter.is_pointer())
         new_loop_var.is_iterable = c_iter.is_iterable
         node.rep = new_loop_var
-        node.rep_iter = c_loop
 
         self._result = new_loop_var
 
@@ -643,7 +644,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # The First terminal works by protecting the code with a if (first_time) {} block.
         # We need to declare the first_time variable outside the block where the thing we are
         # looping over here is defined. This is a little tricky, so we delegate to another method.
-        loop_scope = self.get_rep_iterator(node.source).scope()
+        loop_scope = c_loop.scope()
         outside_block_scope = loop_scope[0][-1]
 
         # Define the variable to track this outside that block.

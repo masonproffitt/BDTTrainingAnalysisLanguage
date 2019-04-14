@@ -13,10 +13,10 @@ class cpp_rep_base:
     This is an abstract class for the most part. Do not override things that aren't needed - that way the system will
     know when the user tries to do something that they shouldn't have.
     '''
-    def __init__(self, scope, is_pointer = False, cpp_type=None):
+    def __init__(self, scope, is_pointer = False, cpp_type=None, is_iterable=False, the_ast=None):
         # Set to true when we represent an item in an interable type.
-        self.is_iterable = False
-        self._ast = None
+        self.is_iterable = is_iterable
+        self._ast = the_ast
         self._scope = scope
         self._is_pointer = is_pointer
         self._cpp_type = cpp_type
@@ -36,7 +36,7 @@ class cpp_rep_base:
     
     def make_ast(self):
         'Create and fill the _ast variable with the ast for this rep'
-        raise BaseException("Internal Error: Subclasses need to implement this in as_ast")
+        raise BaseException("Internal Error: Subclasses need to implement this in as_ast ({0})".format(type(self).__name__))
 
     def scope(self):
         'Return the scope at which this representation was defined'
@@ -48,6 +48,10 @@ class cpp_rep_base:
 
     def cpp_type(self):
         return self._cpp_type
+
+    def get_underlying_object(self):
+        'Subclasses can override if they are proxies'
+        return self
 
 class cpp_variable(cpp_rep_base):
     r'''
@@ -89,7 +93,8 @@ class cpp_variable(cpp_rep_base):
     def find_best_iterator(self):
         'We are the best possible iterator!'
         if not self.is_iterable:
-            raise BaseException('Attempt to find the iterator for a non-iterating variable')
+            return None
+            #raise BaseException('Attempt to find the iterator for a non-iterating variable')
         return self
 
 class cpp_tuple(cpp_rep_base):
@@ -108,6 +113,12 @@ class cpp_tuple(cpp_rep_base):
         'Return a dummy - this should never actually be used'
         return 'tuple-rendering-bogus'
 
+    def find_best_iterator(self):
+        return None
+
+    def make_ast(self):
+        return None
+    
 class cpp_constant(cpp_rep_base):
     r'''
     Represents a constant
@@ -145,6 +156,8 @@ class cpp_expression(cpp_rep_base):
         c = [b for b in [a.find_best_iterator() for a in self._iterator if hasattr(a, 'find_best_iterator')] if b is not None]
         if len(c) > 1:
             raise BaseException("Can't decide what iterator is best! Internal error!")
+        if len(c) == 0:
+            return None
         return c[0]
 
     def scope_of_iter_definition(self):
@@ -155,6 +168,20 @@ class cpp_expression(cpp_rep_base):
     def make_ast(self):
         self._ast = ast.Name(self.as_cpp(), ast.Load())
         self._ast.rep = self
+
+class cpp_forward_capture(cpp_expression):
+    'Captures another variable so you can change one or two things about it'
+    def __init__ (self, old_var=None, iterator_var=None, scope=None, cpp_type=None, is_pointer = False, the_ast = None):
+        cpp_expression.__init__(self, old_var.as_cpp(), iterator_var, scope, cpp_type=cpp_type, is_pointer=is_pointer, the_ast=the_ast)
+        self._old_var = old_var
+
+    def loop_over_collection(self, gc):
+        return self._old_var.loop_over_collection(gc)
+
+    def get_underlying_object(self):
+        'Subclasses can override if they are proxies'
+        return self._old_var.get_underlying_object()
+
 
 class cpp_collection(cpp_variable):
     r'''
@@ -200,7 +227,7 @@ class cpp_iterator_over_collection(cpp_variable):
     an iterator over a collection of collections. These are generated when a Select statement
     returns collection (rather than a single item).
     '''
-    def __init__(self, iter, scope):
+    def __init__(self, iter, scope, parent_iterator=None):
         '''
         Create an iterator over a collection.
 
@@ -209,6 +236,7 @@ class cpp_iterator_over_collection(cpp_variable):
         '''
         cpp_variable.__init__(self, iter.as_cpp(), scope)
         self._iter = iter
+        self._parent_iterator = parent_iterator
 
     def iter(self):
         return self._iter
@@ -221,3 +249,6 @@ class cpp_iterator_over_collection(cpp_variable):
     def scope_of_iter_definition(self):
         'Return the scope where this variable was defined'
         return self._iter.scope_of_iter_definition()
+
+    def find_best_iterator(self):
+        return self._parent_iterator

@@ -81,6 +81,9 @@ def find_line_with(text, lines, throw_if_not_found = True):
         raise BaseException("Unable to find text '{0}' in any lines in text output".format(text))
     return -1
 
+def find_line_numbers_with(text, lines):
+    return [index for index,l in enumerate(lines) if text in l]
+
 def print_lines(lines):
     for l in lines:
         print(l)
@@ -120,6 +123,7 @@ def test_func_sin_call():
 
 def test_per_jet_item_as_call():
     MyEventStream().SelectMany('lambda e: e.Jets("bogus")').Select('lambda j: j.pt()').AsROOTFile('dude').value()
+test_per_jet_item_as_call()
 
 def test_first_jet_in_event():
     MyEventStream() \
@@ -294,7 +298,7 @@ def test_First_Of_Select_is_not_array():
     active_blocks = find_open_blocks(lines[:l_push_back])
     assert 0==[(("for" in a) or ("if" in a)) for a in active_blocks].count(True)
 
-def test_Select_is_an_array():
+def test_Select_is_an_array_with_where():
     # The following statement should be a straight sequence, not an array.
     r = MyEventStream() \
         .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0).Where(lambda jpt: jpt > 10.0)') \
@@ -307,6 +311,74 @@ def test_Select_is_an_array():
     l_push_back = find_line_with("Fill()", lines)
     active_blocks = find_open_blocks(lines[:l_push_back])
     assert 0==["for" in a for a in active_blocks].count(True)
+
+def test_Select_is_an_array():
+    # The following statement should be a straight sequence, not an array.
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0)') \
+        .AsPandasDF('JetPts') \
+        .value()
+    # Check to see if there mention of push_back anywhere.
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    assert 1==["push_back" in l for l in lines].count(True)
+    l_push_back = find_line_with("Fill()", lines)
+    active_blocks = find_open_blocks(lines[:l_push_back])
+    assert 0==["for" in a for a in active_blocks].count(True)
+
+def test_Select_Multiple_arrays():
+    # The following statement should be a straight sequence, not an array.
+    r = MyEventStream() \
+        .Select('lambda e: (e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0),e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.eta()))') \
+        .AsPandasDF(('JetPts','JetEta')) \
+        .value()
+    # Check to see if there mention of push_back anywhere.
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    assert 2==["push_back" in l for l in lines].count(True)
+    l_push_back = find_line_with("Fill()", lines)
+    active_blocks = find_open_blocks(lines[:l_push_back])
+    assert 0==["for" in a for a in active_blocks].count(True)
+
+def test_Select_Multiple_arrays_2_step():
+    # The following statement should be a straight sequence, not an array.
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets")') \
+        .Select('lambda jets: (jets.Select(lambda j: j.pt()/1000.0),jets.Select(lambda j: j.eta()))') \
+        .AsPandasDF(('JetPts','JetEta')) \
+        .value()
+    # Check to see if there mention of push_back anywhere.
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    l_push_back = find_line_numbers_with("push_back", lines)
+    assert all([len([l for l in find_open_blocks(lines[:pb]) if "for" in l])==1 for pb in l_push_back])
+    assert 2==["push_back" in l for l in lines].count(True)
+    l_push_back = find_line_with("Fill()", lines)
+    active_blocks = find_open_blocks(lines[:l_push_back])
+    assert 0==["for" in a for a in active_blocks].count(True)
+
+def test_Select_of_tuple_is_an_array():
+    # The following statement should be a straight sequence, not an array.
+    try:
+        MyEventStream() \
+            .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: (j.pt()/1000.0, j.eta()))') \
+            .AsPandasDF(['JetPts', 'JetEta']) \
+            .value()
+    except BaseException as e:
+        assert "2D array" in str(e)
+
+def test_SelectMany_of_tuple_is_not_array():
+    # The following statement should be a straight sequence, not an array.
+    r = MyEventStream() \
+            .SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: (j.pt()/1000.0, j.eta()))') \
+            .AsPandasDF(['JetPts', 'JetEta']) \
+            .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    assert 0==["push_back" in l for l in lines].count(True)
+    l_push_back = find_line_with("Fill()", lines)
+    active_blocks = find_open_blocks(lines[:l_push_back])
+    assert 1==["for" in a for a in active_blocks].count(True)
 
 def test_First_Of_Select_After_Where_is_in_right_place():
     # Make sure that we have the "First" predicate after if Where's if statement.

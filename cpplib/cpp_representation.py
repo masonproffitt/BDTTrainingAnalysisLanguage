@@ -104,6 +104,10 @@ class cpp_tuple(cpp_rep_base):
     def tup(self):
         return self._tuple
 
+    def as_cpp(self):
+        'Return a dummy - this should never actually be used'
+        return 'tuple-rendering-bogus'
+
 class cpp_constant(cpp_rep_base):
     r'''
     Represents a constant

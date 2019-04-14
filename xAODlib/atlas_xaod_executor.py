@@ -50,6 +50,8 @@ def rep_is_collection(rep):
     'Return true if the representation points to a collection'
     if type(rep) is cpp_iterator_over_collection:
         return True
+    elif rep.is_iterable:
+        return True
     return False
 
 def type_of_rep(rep):
@@ -190,14 +192,14 @@ class query_ast_visitor(ast.NodeVisitor):
             raise BaseException("Internal Error: A variable that can iterate, but no partner loop variable ('{0}')".format(c_iter.as_cpp()))
 
         # Last ditch effort - try to generate a loop over the thing. In short, this is a collection that
-        # can be iterated over.
+        # can be iterated over. Since it is a collection, it doesn't really have an iterator - so we don't
+        # attach one.
         # In this case the iterator and the loop variable are the same.
         if not hasattr(c_iter, "loop_over_collection"):
             # Make the error message a bit more understandable.
             raise BaseException('Do not know how to loop over the expression "{0}" (with type info: {1}).'.format(c_iter.as_cpp(), c_iter.cpp_type()))
 
         c_loop_var = c_iter.loop_over_collection(self._gc)
-        generation_ast.rep_iter = c_loop_var
         return (c_loop_var, c_loop_var)
 
 
@@ -476,6 +478,12 @@ class query_ast_visitor(ast.NodeVisitor):
         self.generic_visit(node)
         v_rep_not_norm = self.get_rep(node.source)
         v_rep = v_rep_not_norm.tup() if type(v_rep_not_norm) is cpp_tuple else (v_rep_not_norm,)
+
+        # Check for something weird, like a 2D array.
+        if (type(v_rep_not_norm) is cpp_iterator_over_collection) and (type(v_rep_not_norm.iter()) is cpp_tuple):
+            raise BaseException("Looks like you have asked for a 2D array which is not yet supported (you have a tuple inside a select sequence)")
+
+        # Make sure the number of items is the same as the number of columns specified.
         if len(v_rep) != len(node.column_names):
             raise BaseException("Number of columns ({0}) is not the same as labels ({1}) in TTree creation".format(len(v_rep), len(node.column_names)))
 
@@ -518,7 +526,7 @@ class query_ast_visitor(ast.NodeVisitor):
         self._gc.set_scope(self.get_rep_iterator(node.source).scope())
         self._gc.add_statement(statement.ttree_fill(tree_name))
         for e in zip(v_rep, var_names):
-            if e[0].is_iterable:
+            if rep_is_collection(e[0]):
                 self._gc.add_statement(statement.container_clear(e[1][1]))
 
         # And we are a terminal, so pop off the block.

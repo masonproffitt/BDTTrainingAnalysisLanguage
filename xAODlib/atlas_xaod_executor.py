@@ -181,25 +181,23 @@ class query_ast_visitor(ast.NodeVisitor):
         # If we have an associated loop variable, then are set, and we can return it all.
         loop_var = self.get_rep_iterator(generation_ast)
         c_iter = self.get_rep(generation_ast)
+
+        # If the iterator isn't iterating, then hopefully it is a collection.
+        if not c_iter.is_iterable:
+            if not hasattr(c_iter, "loop_over_collection"):
+                # Make the error message a bit more understandable.
+                raise BaseException('Do not know how to loop over the expression "{0}" (with type info: {1}).'.format(c_iter.as_cpp(), c_iter.cpp_type()))
+
+            c_loop_var = c_iter.loop_over_collection(self._gc)
+            bi = c_iter.find_best_iterator()
+            return (c_loop_var, bi if bi is not None else c_loop_var)
+
+        # Next, since it is iterable, it should have come back with a loop variable.
         if loop_var is not None:
             return (c_iter, loop_var)
 
-        # So, no loop variable. If the iterator is iterable, then
-        # there should have been an iterator.
-        if c_iter.is_iterable:
-            raise BaseException("Internal Error: A variable that can iterate, but no partner loop variable ('{0}')".format(c_iter.as_cpp()))
-
-        # Last ditch effort - try to generate a loop over the thing. In short, this is a collection that
-        # can be iterated over. Since it is a collection, it doesn't really have an iterator - so we don't
-        # attach one.
-        # In this case the iterator and the loop variable are the same.
-        if not hasattr(c_iter, "loop_over_collection"):
-            # Make the error message a bit more understandable.
-            raise BaseException('Do not know how to loop over the expression "{0}" (with type info: {1}).'.format(c_iter.as_cpp(), c_iter.cpp_type()))
-
-        c_loop_var = c_iter.loop_over_collection(self._gc)
-        return (c_loop_var, c_loop_var)
-
+        # We have an iterable variable, but no looping variable - that isn't right.
+        raise BaseException("Found an iterable variable but not loop variable ({0})!".format(c_iter.as_cpp()))
 
     def visit_Call_Aggregate(self, node):
         r'''Implement the aggregate algorithm in C++
@@ -474,13 +472,13 @@ class query_ast_visitor(ast.NodeVisitor):
         '''
         # Get the representations for each variable.
         self.generic_visit(node)
-        (v_rep_not_norm, v_loop) = self.assure_in_loop(node.source)
+        v_rep_not_norm = self.get_rep(node.source)
         #v_rep_not_norm = self.get_rep(node.source)
-        v_rep_not_norm = v_rep_not_norm.get_underlying_object()
-        v_rep = v_rep_not_norm.tup() if type(v_rep_not_norm) is cpp_tuple else (v_rep_not_norm,)
+        v_rep_true = v_rep_not_norm.get_underlying_object()
+        v_rep = v_rep_true.tup() if type(v_rep_true) is cpp_tuple else (v_rep_not_norm,)
 
         # Check for something weird, like a 2D array.
-        if (type(v_rep_not_norm) is cpp_iterator_over_collection) and (type(v_rep_not_norm.iter().get_underlying_object()) is cpp_tuple):
+        if (type(v_rep_true) is cpp_iterator_over_collection) and (type(v_rep_true.iter().get_underlying_object()) is cpp_tuple):
             raise BaseException("Looks like you have asked for a 2D array which is not yet supported (you have a tuple inside a select sequence)")
 
         # Make sure the number of items is the same as the number of columns specified.
@@ -579,11 +577,11 @@ class query_ast_visitor(ast.NodeVisitor):
         if rep.is_iterable:
             rep = cpp_iterator_over_collection(rep, rep.scope(), parent_iterator=loop_var)
         elif len(loop_var.scope()[0]) > 0:
-            rep = cpp_forward_capture(rep, loop_var, loop_var.scope(), cpp_type=rep.cpp_type(), is_pointer=rep.is_pointer(), the_ast=rep.as_ast())
+            rep = cpp_forward_capture(rep, loop_var, rep.scope(), cpp_type=rep.cpp_type(), is_pointer=rep.is_pointer(), the_ast=rep.as_ast())
             rep.is_iterable = True
         else:
             # Just need to reset the scope here.
-            rep = cpp_forward_capture(rep, loop_var, loop_var.scope(), cpp_type=rep.cpp_type(), is_pointer=rep.is_pointer(), the_ast=rep.as_ast())
+            rep = cpp_forward_capture(rep, loop_var, rep.scope(), cpp_type=rep.cpp_type(), is_pointer=rep.is_pointer(), the_ast=rep.as_ast())
         select_ast.rep = rep
         self._result = rep
 
@@ -645,7 +643,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # We need to declare the first_time variable outside the block where the thing we are
         # looping over here is defined. This is a little tricky, so we delegate to another method.
         loop_scope = c_loop.scope()
-        outside_block_scope = loop_scope[0][-1]
+        outside_block_scope = loop_scope[0][-2]
 
         # Define the variable to track this outside that block.
         is_first = cpp_variable(unique_name('is_first'), None, cpp_type='bool', initial_value='true')

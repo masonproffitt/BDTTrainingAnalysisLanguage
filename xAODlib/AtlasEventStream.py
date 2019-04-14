@@ -14,7 +14,7 @@ class AtlasXAODFileStream(ast.AST):
     def __init__(self, ds_url):
         self.dataset_url = ds_url
         # Set a rep for ourselves, but it should never be directly used.
-        self.rep = cpp_variable("bogus-do-not-use", scope=None)
+        self.rep = cpp_variable("bogus-do-not-use", scope=([],))
         self.rep.is_iterable = True # No need to build up a new loop - implied!
         self.rep._ast = self # So that we get used properly when passed on.
 

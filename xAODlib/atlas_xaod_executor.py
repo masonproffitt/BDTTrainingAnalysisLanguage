@@ -146,7 +146,11 @@ class query_ast_visitor(ast.NodeVisitor):
                 self._arg_stack.define_name(l_arg.arg, c_arg)
 
             # Next, process the lambda's body.
-            self.visit(call_node.func.body)
+            call_node.rep = self.get_rep(call_node.func.body)
+            lp = self.get_rep_iterator(call_node.func.body)
+            if lp is not None:
+                call_node.rep_iter = lp
+        
             
     def assure_in_loop(self, generation_ast):
         r'''

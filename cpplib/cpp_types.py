@@ -17,6 +17,16 @@ class terminal:
     def is_pointer(self):
         return self._is_pointer
 
+    def default_value(self):
+        if self._type == "double":
+            return "0.0"
+        elif self._type == "float":
+            return "0.0"
+        elif self._type == "int":
+            return "0"
+        else:
+            raise BaseException("Do not know a default value for the type '{0}'.".format(self._type))
+
 class collection:
     'Represents a collection/list/vector of the same type'
     def __init__ (self, t):

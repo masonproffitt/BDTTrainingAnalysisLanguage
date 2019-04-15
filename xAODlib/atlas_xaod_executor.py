@@ -208,7 +208,7 @@ class query_ast_visitor(ast.NodeVisitor):
     
     def create_accumulator (self, seq: crep.cpp_sequence, initial_value = None, acc_type=None):
         'Helper to create an accumulator for the Aggregate function'
-        accumulator_type = acc_type if acc_type is not None else seq.iterator_value().cpp_type()
+        accumulator_type = acc_type if acc_type is not None else seq.sequence_value().cpp_type()
         if not check_accumulator_type(accumulator_type):
             raise BaseException("Aggregate over a sequence of type '{0}' is not supported.".format(str(accumulator_type)))
         
@@ -223,7 +223,7 @@ class query_ast_visitor(ast.NodeVisitor):
         accumulator = crep.cpp_variable(unique_name("aggResult"),
                     accumulator_scope,
                     accumulator_type,
-                    initial_value=initial_value if initial_value is not None else accumulator_type.default_value())
+                    initial_value=initial_value if initial_value is not None else crep.cpp_value(accumulator_type.default_value(), self._gc.current_scope(), accumulator_type))
         accumulator_scope.declare_variable(accumulator)
 
         return accumulator, accumulator_scope
@@ -233,27 +233,45 @@ class query_ast_visitor(ast.NodeVisitor):
         - (acc lambda): the accumulator is set to the first element, and the lambda is called to
                         update it after that. This is called `agg_only`.
         '''
-        raise BaseException("Not Implemented Yet")
-        # agg_lambda = node.args[0]
+        agg_lambda = node.args[0]
 
-        # # Get the sequence we are calling against and the accumulator
-        # seq = self.as_sequence(node.func.value)
-        # accumulator = self.create_accumulator(seq)
+        # Get the sequence we are calling against and the accumulator
+        seq = self.as_sequence(node.func.value)
+        accumulator, accumulator_scope = self.create_accumulator(seq)
 
-        # # The first two values are special calls to agg_lambda. After that, we use
-        # # the result to accumulate them.
+        # We have to do a simple if statement here so that the first time through we can set the
+        # accumulator, and the second time we can add to it.
 
-        # # Now do the accumulation. This happens at the current iterator scope.
-        # self._gc.set_scope(seq.iterator_value().scope())
-        # call = ast.Call(func=agg_lambda, args=[accumulator.as_ast(), seq.iterator_value.as_ast()])
-        # self._gc.add_statement(statement.set_var(accumulator, self.get_rep(call)))
+        is_first_iter = crep.cpp_variable(unique_name("is_first"), self._gc.current_scope(), cpp_type=ctyp.terminal('bool'), initial_value=crep.cpp_value('true', self._gc.current_scope(), ctyp.terminal('bool')))
+        accumulator_scope.declare_variable(is_first_iter)
 
-        # # Finally, since this is a terminal, we need to pop off the top.
-        # self._gc.set_scope(accumulator_scope)
+        # Set the scope where we will be doing the accumulation
+        sv = seq.sequence_value()
+        if isinstance(sv,crep.cpp_sequence):
+            self._gc.set_scope(sv.iterator_value().scope()[-1])
+        else:
+            self._gc.set_scope(sv.scope())
 
-        # # Cache the results in our result in case we are skipping nodes in the AST.
-        # node.rep = accumulator_scope
-        # self._result = accumulator_scope
+        # Code up if statement to select out the first element.
+        if_first = statement.iftest(is_first_iter)
+        self._gc.add_statement(if_first)
+        self._gc.add_statement(statement.set_var(is_first_iter, crep.cpp_value("false", self._gc.current_scope(), ctyp.terminal('bool'))))
+
+        # Set the accumulator
+        self._gc.add_statement(statement.set_var(accumulator, seq.sequence_value()))
+        self._gc.pop_scope()
+
+        # Now do the if statement and make the call to calculate the accumulation.
+        self._gc.add_statement(statement.elsephrase())
+        call = ast.Call(func=agg_lambda, args=[accumulator.as_ast(), seq.sequence_value().as_ast()])
+        self._gc.add_statement(statement.set_var(accumulator, self.get_rep(call)))
+
+        # Finally, since this is a terminal, we need to pop off the top.
+        self._gc.set_scope(accumulator_scope)
+
+        # Cache the results in our result in case we are skipping nodes in the AST.
+        node.rep = accumulator
+        self._result = accumulator
 
     def visit_call_Aggregate_initial(self, node: ast.Call):
         '''
@@ -273,7 +291,7 @@ class query_ast_visitor(ast.NodeVisitor):
             self._gc.set_scope(sv.iterator_value().scope()[-1])
         else:
             self._gc.set_scope(sv.scope())
-        call = ast.Call(func=agg_lambda, args=[accumulator.as_ast(), seq.iterator_value().as_ast()])
+        call = ast.Call(func=agg_lambda, args=[accumulator.as_ast(), seq.sequence_value().as_ast()])
         self._gc.add_statement(statement.set_var(accumulator, self.get_rep(call)))
 
         # Finally, since this is a terminal, we need to pop off the top.

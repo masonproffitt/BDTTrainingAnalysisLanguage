@@ -286,10 +286,14 @@ def test_Aggregate_per_jet():
         .value()
 
 def test_Aggregate_not_inital_const_SUM():
-    MyEventStream() \
+    r = MyEventStream() \
         .Select("lambda e: e.Jets('AntiKt4EMTopoJets').Select(lambda j: j.pt()/1000).Sum()") \
         .AsROOTFile("n_jets") \
         .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    l_sets = find_line_numbers_with("/1000", lines)
+    assert 2 == len(l_sets)
 
 def test_First_Of_Select_is_not_array():
     # The following statement should be a straight sequence, not an array.

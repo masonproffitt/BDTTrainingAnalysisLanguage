@@ -186,7 +186,7 @@ events = f.AsATLASEvents()
 
 import tests.xAODlib.test_atlas_xaod_executor as xaod_tests 
 #xaod_tests.test_Select_is_an_array()
-xaod_tests.test_sequence_with_where_first()
+xaod_tests.test_Aggregate_not_inital_const_SUM()
 #import tests.xAODlib.test_integrated_query as integrated_tests
 #integrated_tests.test_First_two_outer_loops()
 #xaod_tests.test_Select_is_not_an_array()

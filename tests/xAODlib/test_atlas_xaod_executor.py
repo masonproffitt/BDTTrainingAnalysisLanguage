@@ -14,7 +14,8 @@ sys.path.append('.')
 import ast
 from clientlib.ObjectStream import ObjectStream
 from xAODlib.atlas_xaod_executor import atlas_xaod_executor
-from cpplib.cpp_representation import cpp_variable
+from xAODlib.util_scope import top_level_scope
+from cpplib.cpp_representation import cpp_variable, cpp_sequence
 from clientlib.DataSets import EventDataSet
 from math import sin
 
@@ -34,8 +35,8 @@ class dummy_executor(atlas_xaod_executor):
 # Define a dataset we can use
 class test_stream(ast.AST):
     def __init__ (self):
-        self.rep = cpp_variable("bogus-do-not-use", scope=([],))
-        self.rep.is_iterable = True # No need to build up a new loop - implied!
+        iter = cpp_variable("bogus-do-not-use", scope=top_level_scope(), cpp_type=None)
+        self.rep = cpp_sequence(iter, iter)
         self.rep._ast = self # So that we get used properly when passed on.
 
     def get_executor(self):
@@ -115,7 +116,10 @@ def find_open_blocks(lines):
 # Tests that just make sure we can generate everything without a crash.
 
 def test_per_event_item():
-    MyEventStream().Select('lambda e: e.EventInfo("EventInfo").runNumber()').AsROOTFile('RunNumber').value()
+    r=MyEventStream().Select('lambda e: e.EventInfo("EventInfo").runNumber()').AsROOTFile('RunNumber').value()
+    vs = r.QueryVisitor._gc._class_vars
+    assert 1 == len(vs)
+    assert "double" == str(vs[0].cpp_type())
 
 def test_func_sin_call():
     MyEventStream().Select('lambda e: sin(e.EventInfo("EventInfo").runNumber())').AsROOTFile('RunNumber').value()
@@ -243,7 +247,6 @@ def test_first_can_be_iterable_after_where():
         .Select('lambda e: e.Jets("AllMyJets").Select(lambda j: e.Tracks("InnerTracks").Where(lambda t: t.pt() > 1000.0)).First().Count()') \
         .AsROOTFile('dude') \
         .value()
-test_first_can_be_iterable_after_where()
 
 def test_first_can_be_iterable():
     # Make sure a First() here gets called back correctly and generated.
@@ -319,7 +322,7 @@ def test_Select_is_an_array_with_where():
 def test_Select_is_an_array():
     # The following statement should be a straight sequence, not an array.
     r = MyEventStream() \
-        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt()/1000.0)') \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt())') \
         .AsPandasDF('JetPts') \
         .value()
     # Check to see if there mention of push_back anywhere.
@@ -329,6 +332,20 @@ def test_Select_is_an_array():
     l_push_back = find_line_with("Fill()", lines)
     active_blocks = find_open_blocks(lines[:l_push_back])
     assert 0==["for" in a for a in active_blocks].count(True)
+
+def test_Select_is_not_an_array():
+    # The following statement should be a straight sequence, not an array.
+    r = MyEventStream() \
+        .SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt())') \
+        .AsPandasDF('JetPts') \
+        .value()
+    # Check to see if there mention of push_back anywhere.
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    assert 0==["push_back" in l for l in lines].count(True)
+    l_push_back = find_line_with("Fill()", lines)
+    active_blocks = find_open_blocks(lines[:l_push_back])
+    assert 1==["for" in a for a in active_blocks].count(True)
 
 def test_Select_Multiple_arrays():
     # The following statement should be a straight sequence, not an array.
@@ -361,15 +378,15 @@ def test_Select_Multiple_arrays_2_step():
     active_blocks = find_open_blocks(lines[:l_push_back])
     assert 0==["for" in a for a in active_blocks].count(True)
 
-def test_Select_of_tuple_is_an_array():
+def test_Select_of_2D_array_fails():
     # The following statement should be a straight sequence, not an array.
     try:
         MyEventStream() \
             .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: (j.pt()/1000.0, j.eta()))') \
-            .AsPandasDF(['JetPts', 'JetEta']) \
+            .AsPandasDF(['JetInfo']) \
             .value()
     except BaseException as e:
-        assert "2D array" in str(e)
+        assert "Nested data structures" in str(e)
 
 def test_SelectMany_of_tuple_is_not_array():
     # The following statement should be a straight sequence, not an array.
@@ -406,3 +423,18 @@ def test_First_selects_collection_count():
     print_lines(lines)
     l = find_line_numbers_with("for", lines)
     assert 2==len(l)
+
+def test_sequence_with_where_first():
+    r = MyEventStream() \
+        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: e.Tracks("InDetTrackParticles").Where(lambda t: t.pt() > 1000.0)).First().Count()') \
+        .AsPandasDF('dude') \
+        .value()
+    lines = get_lines_of_code(r)
+    print_lines(lines)
+    l_first = find_line_numbers_with("if (is_first", lines)
+    assert 1 == len(l_first)
+    active_blocks = find_open_blocks(lines[:l_first[0]])
+    assert 1==["for" in a for a in active_blocks].count(True)
+    l_agg = find_line_with("+1", lines)
+    active_blocks = find_open_blocks(lines[:l_agg])
+    assert 1==[">1000" in a for a in active_blocks].count(True)

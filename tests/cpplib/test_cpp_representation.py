@@ -6,14 +6,13 @@
 import sys
 sys.path.append('.')
 
-from cpplib.cpp_representation import cpp_expression
+import cpplib.cpp_representation as crep
+import cpplib.cpp_types as ctyp
+from xAODlib.util_scope import top_level_scope
 
 def test_expression_pointer_decl():
-    e1 = cpp_expression("dude", None, None)
-    assert False == e1.is_pointer()
-
-    e2 = cpp_expression("dude", None, None, is_pointer = False)
+    e2 = crep.cpp_value("dude", top_level_scope(), ctyp.terminal("int"))
     assert False == e2.is_pointer()
 
-    e3 = cpp_expression("dude", None, None, is_pointer = True)
+    e3 = crep.cpp_value("dude", top_level_scope(), ctyp.terminal("int", is_pointer=True))
     assert True == e3.is_pointer()

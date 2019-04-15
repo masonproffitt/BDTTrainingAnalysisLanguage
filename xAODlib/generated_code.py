@@ -1,26 +1,7 @@
 # Hold onto the generated code
 from xAODlib.statement import block
-
-def scope_is_deeper(s1, s2):
-    '''Return true if scope `s2` is deeper than scope `s`.
-    
-    s1 - returned from the `current_scope()` on `generated_code`.
-    s2 - a second scope from the same function.
-
-    returns:
-
-    is_deeper - true if scope s2 has more levels than s1.
-    throws if for the frames that s1 and s2 have, if they do not match.
-
-    '''
-    stack_1 = s1[0]
-    stack_2 = s2[0]
-
-    are_same = all(a1 == a2 for a1,a2 in zip(stack_1, stack_2))
-    if not are_same:
-        raise BaseException("Unable to determine relative scope differences unless the initial part of the scope is the same!")
-
-    return len(stack_1) < len(stack_2)
+import cpplib.cpp_representation as crep
+from xAODlib.util_scope import gc_scope
 
 class generated_code:
     def __init__(self):
@@ -74,16 +55,19 @@ class generated_code:
 
     def current_scope(self):
         'Return a token that can be later used to set the scoping'
-        return (self._scope_stack,)
+        return gc_scope(self._scope_stack)
 
-    def set_scope(self, scope_info):
+    def set_scope(self, scope_info: gc_scope):
         'Set the scope to a previously cached value'
+        if scope_info is None:
+            raise BaseException("Scope can't be set to null")
+        if scope_info.is_top_level():
+            # Special case this guy as it is a unicorn.
+            self._scope_stack = self._scope_stack[:1]
+            return
 
-        # If this is a top level set, detect that.
-        if len(scope_info[0]) == 0:
-            self._scope_stack =  (self._block,)
-        else:
-            self._scope_stack = scope_info[0]
+        # Restore it to whatever it was.
+        self._scope_stack = scope_info._scope_stack
 
     def add_book_statement(self, st, below=None):
         self._book_block.add_statement(st)

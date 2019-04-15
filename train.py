@@ -171,9 +171,22 @@ events = f.AsATLASEvents()
 #             .AsPandasDF(columns=['NTracks']) \
 #             .value()
 
-training_df = events \
-        .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: e.Tracks("InDetTrackParticles").Where(lambda t: t.pt() > 1000.0)).First().Count()') \
-        .AsPandasDF('dude') \
-        .value()
+# training_df = events \
+#                 .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: e.Tracks("InDetTrackParticles")).First().Count()') \
+#                 .AsPandasDF('dude') \
+#                 .value()
+# training_df = events \
+#                 .SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets")').Select('lambda j: j.pt()').AsPandasDF('dude').value()
 
-print(training_df)
+        # .Select('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: e.Tracks("InDetTrackParticles").Where(lambda t: t.pt() > 1000.0)).First().Count()') \
+        # .AsPandasDF('dude') \
+        # .value()
+
+# print(training_df)
+
+import tests.xAODlib.test_atlas_xaod_executor as xaod_tests 
+#xaod_tests.test_Select_is_an_array()
+xaod_tests.test_sequence_with_where_first()
+#import tests.xAODlib.test_integrated_query as integrated_tests
+#integrated_tests.test_First_two_outer_loops()
+#xaod_tests.test_Select_is_not_an_array()

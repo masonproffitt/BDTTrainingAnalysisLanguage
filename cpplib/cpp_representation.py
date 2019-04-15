@@ -159,7 +159,7 @@ class cpp_collection(cpp_value):
 
         cpp_expression:         The expression in C++ to refer to this collection.
         scope:                  The scope at which this collection is valid.
-        collection_type:        The type of the collection (see cpp_types).
+        collection_type:        The type of the collection (see cpp_types). It should be a collection
         '''
         cpp_value.__init__(self, cpp_expression, scope, collection_type)
 

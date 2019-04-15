@@ -285,6 +285,12 @@ def test_Aggregate_per_jet():
         .AsROOTFile("n_jets") \
         .value()
 
+def test_Aggregate_not_inital_const_SUM():
+    MyEventStream() \
+        .Select("lambda e: e.Jets('AntiKt4EMTopoJets').Select(lambda j: j.pt()/1000).Sum()") \
+        .AsROOTFile("n_jets") \
+        .value()
+
 def test_First_Of_Select_is_not_array():
     # The following statement should be a straight sequence, not an array.
     r = MyEventStream() \

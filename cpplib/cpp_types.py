@@ -21,7 +21,7 @@ class collection:
     'Represents a collection/list/vector of the same type'
     def __init__ (self, t):
         '''
-        Initialize a collection type
+        Initialize a collection type.
 
         t:      The type of each element in the collection
         '''
@@ -29,6 +29,9 @@ class collection:
 
     def __str__(self):
         return "vector<" + self._element_type + ">"
+
+    def element_type(self):
+        return self._element_type
 
 class tuple:
     'Represents a value which is a collection of other types'

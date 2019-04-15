@@ -1,6 +1,7 @@
 # Some math utilities
 import cpplib.cpp_ast as cpp_ast
-from cpplib.cpp_representation import cpp_variable
+import cpplib.cpp_representation as crep
+import cpplib.cpp_types as ctyp
 from cpplib.cpp_vars import unique_name
 
 def DeltaRAst(call_node):
@@ -25,7 +26,7 @@ def DeltaRAst(call_node):
     r.running_code += ['auto d_phi = TVector2::Phi_mpi_pi(phi1-phi2);']
     r.running_code += ['auto result = sqrt(d_eta*d_eta + d_phi*d_phi);']
     r.result = 'result'
-    r.result_rep = cpp_variable(unique_name('delta_r'), scope=None, cpp_type='double')
+    r.result_rep = lambda sc: crep.cpp_variable(unique_name('delta_r'), scope=sc, cpp_type=ctyp.terminal('double'))
 
     call_node.func = r
     return call_node

@@ -114,7 +114,7 @@ def process_ast_node(visitor, gc, call_node):
     # against, if any.
     repl_list = []
     if cpp_ast_node.replacement_instance_obj is not None:
-        repl_list += [(cpp_ast_node.replacement_instance_obj[0], visitor.resolve_id(cpp_ast_node.replacement_instance_obj[1]).rep.name())]
+        repl_list += [(cpp_ast_node.replacement_instance_obj[0], visitor.resolve_id(cpp_ast_node.replacement_instance_obj[1]).rep.as_cpp())]
 
     # Process the arguments that are getting passed to the function
     for arg,dest in zip(cpp_ast_node.args, call_node.args):

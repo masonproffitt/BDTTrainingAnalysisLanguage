@@ -393,7 +393,7 @@ class query_ast_visitor(ast.NodeVisitor):
         # TODO: The iterator might be in an argument, so passing calling_against here may not be ok.
         # TODO: We have no type system, who knows what type this function returns. Assume double.
         if not isinstance(calling_against, crep.cpp_value):
-            raise BaseException("Do not know how to call '{0}' on '{1}'".format(function_name, type(calling_against).__name))
+            raise BaseException("Do not know how to call '{0}' on '{1}'".format(function_name, type(calling_against).__name__))
         c_stub = calling_against.as_cpp() + ("->" if calling_against.is_pointer() else ".")
         self._result = crep.cpp_value(c_stub + function_name + "()", calling_against.scope(), ctyp.terminal("double"))
 
@@ -442,7 +442,7 @@ class query_ast_visitor(ast.NodeVisitor):
             raise BaseException("Do not know how to take the index of type '{0}'".format(v.cpp_type()))
 
         index = self.get_rep(node.slice)
-        node.rep = crep.cpp_value("{0}.at({1})".format(v.as_cpp(), index.as_cpp()), [v, index], self._gc.current_scope(), cpp_type=v.get_element_type())
+        node.rep = crep.cpp_value("{0}.at({1})".format(v.as_cpp(), index.as_cpp()), self._gc.current_scope(), cpp_type=v.get_element_type())
         self._result = node.rep
 
     def visit_Index(self, node):

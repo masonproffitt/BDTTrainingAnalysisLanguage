@@ -29,19 +29,23 @@ class terminal:
 
 class collection:
     'Represents a collection/list/vector of the same type'
-    def __init__ (self, t):
+    def __init__ (self, t, is_pointer = False):
         '''
         Initialize a collection type.
 
         t:      The type of each element in the collection
         '''
         self._element_type = t
+        self._is_pointer = is_pointer
 
     def __str__(self):
-        return "vector<" + self._element_type + ">"
+        return "std::vector<" + str(self._element_type) + ">"
 
     def element_type(self):
         return self._element_type
+
+    def is_pointer(self):
+        return self._is_pointer
 
 class tuple:
     'Represents a value which is a collection of other types'

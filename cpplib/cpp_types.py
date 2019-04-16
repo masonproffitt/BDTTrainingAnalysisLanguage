@@ -60,3 +60,30 @@ class tuple:
 
     def __str__(self):
         return "(" + ','.join(self._type_list) + ")"
+
+###########################
+# Manage types
+
+g_method_type_dict = {}
+
+def add_method_type_info (type_string, method_name, t):
+    '''
+    Define a return type for a method
+
+    type_string         String of the object the method is calling against
+    method_name         Name of the object
+    t                   The type (terminal, collection, etc.) of return type
+    '''
+    if type_string not in g_method_type_dict:
+        g_method_type_dict[type_string] = {}
+    g_method_type_dict[type_string][method_name] = t
+
+def method_type_info(type_string, method_name):
+    '''
+    Return the type of the method's return value
+    '''
+    if type_string not in g_method_type_dict:
+        return None
+    if method_name not in g_method_type_dict[type_string]:
+        return None
+    return g_method_type_dict[type_string][method_name]

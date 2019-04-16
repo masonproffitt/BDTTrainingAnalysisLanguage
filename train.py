@@ -184,9 +184,9 @@ events = f.AsATLASEvents()
 
 # print(training_df)
 
-import tests.xAODlib.test_atlas_xaod_executor as xaod_tests 
+import tests.xAODlib.test_simple_type_info as xaod_tests 
 #xaod_tests.test_Select_is_an_array()
-xaod_tests.test_per_event_item()
+xaod_tests.test_can_call_prodVtx()
 #import tests.xAODlib.test_integrated_query as integrated_tests
 #integrated_tests.test_First_two_outer_loops()
 #xaod_tests.test_Select_is_not_an_array()

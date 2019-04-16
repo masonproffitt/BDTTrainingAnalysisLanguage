@@ -5,6 +5,7 @@
 import sys
 # Code to do the testing starts here.
 from tests.xAODlib.utils_for_testing import *
+import cpplib.cpp_types as ctyp
 
 def test_cant_call_double():
     try: 
@@ -19,3 +20,10 @@ def test_cant_call_double():
         return
     # Should never get here!
     assert False
+
+def test_can_call_prodVtx():
+    ctyp.add_method_type_info("xAOD::TruthParticle", "prodVtx", ctyp.terminal('xAODTruth::TruthVertex', is_pointer=True))
+    MyEventStream() \
+        .Select("lambda e: e.TruthParticles('TruthParticles').Select(lambda t: t.prodVtx().x()).Sum()") \
+        .AsROOTFile("n_jets") \
+        .value()

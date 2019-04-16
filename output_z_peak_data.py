@@ -31,7 +31,14 @@ events = f.AsATLASEvents()
 # Track basic event info, jets, and LLP particles.
 # TODO: Sort out which is the proper met
 event_info = events \
-    .Select(r'''lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.TruthParticles('TruthParticles').Where(lambda tp1: abs(tp1.pdgId()) == 11 or abs(tp1.pdgId()) == 13), e.MissingET('MET_Core_AntiKt4EMTopo').First())
+    .Select(r'''lambda e: (
+        e.EventInfo('EventInfo'),
+        e.Jets('AntiKt4EMTopoJets'),
+        e.TruthParticles('TruthParticles').Where(lambda tp1: abs(tp1.pdgId()) == 11 or abs(tp1.pdgId()) == 13),
+        e.MissingET('MET_Core_AntiKt4EMTopo').First(),
+        e.Electrons("Electrons"),
+        e.Muons("Muons"),
+        )
     ''')
 
 # Build us a list of columns
@@ -39,15 +46,25 @@ tc = track_columns()
 tc.add_col('RunNumber', 'ji[0].runNumber()')
 tc.add_col('EventNumber', 'ji[0].eventNumber()')
 
-tc.add_col('JetPt', 'ji[1].Select(lambda j: j.pt()/1000.0)')
-tc.add_col('JetEta', 'ji[1].Select(lambda j: j.eta()/1000.0)')
-tc.add_col('JetPhi', 'ji[1].Select(lambda j: j.phi()/1000.0)')
+tc.add_col('jet_pt', 'ji[1].Select(lambda j: j.pt()/1000.0)')
+tc.add_col('jet_eta', 'ji[1].Select(lambda j: j.eta()/1000.0)')
+tc.add_col('jet_phi', 'ji[1].Select(lambda j: j.phi()/1000.0)')
 
 # MC info
 tc.add_col('mc_id', 'ji[2].Select(lambda mc: mc.pdgId())')
 tc.add_col('mc_pt', 'ji[2].Select(lambda mc: mc.pt()/1000.0)')
 tc.add_col('mc_eta', 'ji[2].Select(lambda mc: mc.eta())')
 tc.add_col('mc_phi', 'ji[2].Select(lambda mc: mc.phi())')
+
+# Electron info
+tc.add_col('ele_pt', 'ji[4].Select(lambda e: e.pt()/1000.0)')
+tc.add_col('ele_eta', 'ji[4].Select(lambda e: e.eta()/1000.0)')
+tc.add_col('ele_phi', 'ji[4].Select(lambda e: e.phi()/1000.0)')
+
+# Muon info
+tc.add_col('mu_pt', 'ji[5].Select(lambda m: m.pt()/1000.0)')
+tc.add_col('mu_eta', 'ji[5].Select(lambda m: m.eta())')
+tc.add_col('mu_phi', 'ji[5].Select(lambda m: m.phi())')
 
 # MET
 tc.add_col("met_met", 'ji[3].met()/1000.0')

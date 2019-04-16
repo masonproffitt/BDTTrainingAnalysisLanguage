@@ -59,6 +59,16 @@ collections = [
         'container_type': event_collection_collection('xAOD::TruthParticleContainer', 'xAOD::TruthParticle')
     },
     {
+        'function_name': "Electrons",
+        'include_files': ['xAODEgamma/ElectronContainer.h', 'xAODEgamma/Electron.h'],
+        'container_type': event_collection_collection('xAOD::ElectronContainer', 'xAOD::Electron')
+    },
+    {
+        'function_name': "Muons",
+        'include_files': ['xAODMuon/MuonContainer.h', 'xAODMuon/Muon.h'],
+        'container_type': event_collection_collection('xAOD::MuonContainer', 'xAOD::Muon')
+    },
+    {
         'function_name': "MissingET",
         'include_files': ['xAODMissingET/MissingETContainer.h', 'xAODMissingET/MissingET.h'],
         'container_type': event_collection_collection('xAOD::MissingETContainer', 'xAOD::MissingET'),

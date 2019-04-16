@@ -58,6 +58,11 @@ collections = [
         'include_files': ['xAODTruth/TruthParticleContainer.h', 'xAODTruth/TruthParticle.h', 'xAODTruth/TruthVertex.h'],
         'container_type': event_collection_collection('xAOD::TruthParticleContainer', 'xAOD::TruthParticle')
     },
+    {
+        'function_name': "MissingET",
+        'include_files': ['xAODMissingET/MissingETContainer.h', 'xAODMissingET/MissingET.h'],
+        'container_type': event_collection_collection('xAOD::MissingETContainer', 'xAOD::MissingET'),
+    },
 ]
 
 def getCollection(info, call_node):

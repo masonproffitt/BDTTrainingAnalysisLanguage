@@ -4,6 +4,7 @@ from cpplib.math_utils import DeltaR
 import cpplib.cpp_types as ctyp
 
 class track_columns:
+    'Helper method because syntax is not great yet'
     def __init__(self):
         self.col_names = []
         self.col_expr = []
@@ -23,18 +24,15 @@ class track_columns:
         'Return the tuple string'
         return '({0})'.format(','.join(self.col_expr))
 
-def add_sampling_layer(name, index, tc):
-    'Add a column accessing the energy sampling guy'
-    tc.add_col(name, 'ji[1].getAttributeVectorFloat("EnergyPerSampling")[{0}]/(ji[1].getAttributeVectorFloat("EnergyPerSampling").Sum())'.format(index))
-
-
 # Use the following datasets as input
 f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
 events = f.AsATLASEvents()
 
 # Track basic event info, jets, and LLP particles.
+# TODO: Sort out which is the proper met
 event_info = events \
-    .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.TruthParticles('TruthParticles').Where(lambda tp1: abs(tp1.pdgId()) == 11 or abs(tp1.pdgId()) == 13))")
+    .Select(r'''lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.TruthParticles('TruthParticles').Where(lambda tp1: abs(tp1.pdgId()) == 11 or abs(tp1.pdgId()) == 13), e.MissingET('MET_Core_AntiKt4EMTopo').First())
+    ''')
 
 # Build us a list of columns
 tc = track_columns()
@@ -50,6 +48,9 @@ tc.add_col('mc_id', 'ji[2].Select(lambda mc: mc.pdgId())')
 tc.add_col('mc_pt', 'ji[2].Select(lambda mc: mc.pt()/1000.0)')
 tc.add_col('mc_eta', 'ji[2].Select(lambda mc: mc.eta())')
 tc.add_col('mc_phi', 'ji[2].Select(lambda mc: mc.phi())')
+
+# MET
+tc.add_col("met_met", 'ji[3].met()/1000.0')
 
 # Most of the mlp stuff is going to come from a bunch of jet moments.
 # TODO: Add cut on clean LLP jet

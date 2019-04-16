@@ -17,7 +17,7 @@ def parse_ast (ast_text):
     ast: The python AST representing the function, with Select, SelectMany, etc., properly converted
          to function call AST's.
     '''
-    a = ast.parse(ast_text)
+    a = ast.parse(ast_text.strip())
     return lambda_unwrap(replace_LINQ_operators().visit(a))
 
 class replace_LINQ_operators(ast.NodeTransformer):

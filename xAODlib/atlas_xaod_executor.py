@@ -483,9 +483,14 @@ class query_ast_visitor(ast.NodeVisitor):
         left = self.get_rep(node.left)
         right = self.get_rep(node.right)
 
+        # TODO: Turn this into a table lookup rather than the same thing repeated over and over
         if type(node.op) is ast.Add:
             r = crep.cpp_value("({0}+{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope(), left.cpp_type())
         elif type(node.op) is ast.Div:
+            r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope(), left.cpp_type())
+        elif type(node.op) is ast.Sub:
+            r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope(), left.cpp_type())
+        elif type(node.op) is ast.Mult:
             r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope(), left.cpp_type())
         else:
             raise BaseException("Binary operator {0} is not implemented.".format(type(node.op)))

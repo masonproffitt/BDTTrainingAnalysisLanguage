@@ -124,3 +124,12 @@ def test_SelectMany_of_tuple_is_not_array():
     l_push_back = find_line_with("Fill()", lines)
     active_blocks = find_open_blocks(lines[:l_push_back])
     assert 1==["for" in a for a in active_blocks].count(True)
+
+def test_generate_binary_operators():
+    # Make sure the binary operators work correctly - that they don't cause a crash in generation.
+    ops = ['+','-','*','/']
+    for o in ops:
+        MyEventStream() \
+            .SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets").Select(lambda j: j.pt(){0}1)'.format(o)) \
+            .AsPandasDF(['JetInfo']) \
+            .value()

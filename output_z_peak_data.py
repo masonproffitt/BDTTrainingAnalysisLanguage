@@ -1,0 +1,64 @@
+# Write out a flat ROOT file that can be used to look for Z->ee and Z->mumu
+from clientlib.DataSets import EventDataSet
+from cpplib.math_utils import DeltaR
+import cpplib.cpp_types as ctyp
+
+class track_columns:
+    def __init__(self):
+        self.col_names = []
+        self.col_expr = []
+
+    def add_col (self, name, expr):
+        self.col_names += [name]
+        self.col_expr += [expr]
+
+    def col_index(self, name):
+        'Return the name of a column'
+        for i, n in enumerate(self.col_names):
+            if n == name:
+                return i
+        raise BaseException('Unable to find column "{0}"!'.format(name))
+
+    def gen_tuple(self):
+        'Return the tuple string'
+        return '({0})'.format(','.join(self.col_expr))
+
+def add_sampling_layer(name, index, tc):
+    'Add a column accessing the energy sampling guy'
+    tc.add_col(name, 'ji[1].getAttributeVectorFloat("EnergyPerSampling")[{0}]/(ji[1].getAttributeVectorFloat("EnergyPerSampling").Sum())'.format(index))
+
+
+# Use the following datasets as input
+f = EventDataSet(r"file://G:/mc16_13TeV/AOD.16300985._000011.pool.root.1")
+events = f.AsATLASEvents()
+
+# Track basic event info, jets, and LLP particles.
+event_info = events \
+    .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.TruthParticles('TruthParticles').Where(lambda tp1: abs(tp1.pdgId()) == 11 or abs(tp1.pdgId()) == 13))")
+
+# Build us a list of columns
+tc = track_columns()
+tc.add_col('RunNumber', 'ji[0].runNumber()')
+tc.add_col('EventNumber', 'ji[0].eventNumber()')
+
+tc.add_col('JetPt', 'ji[1].Select(lambda j: j.pt()/1000.0)')
+tc.add_col('JetEta', 'ji[1].Select(lambda j: j.eta()/1000.0)')
+tc.add_col('JetPhi', 'ji[1].Select(lambda j: j.phi()/1000.0)')
+
+# MC info
+tc.add_col('mc_id', 'ji[2].Select(lambda mc: mc.pdgId())')
+tc.add_col('mc_pt', 'ji[2].Select(lambda mc: mc.pt()/1000.0)')
+tc.add_col('mc_eta', 'ji[2].Select(lambda mc: mc.eta())')
+tc.add_col('mc_phi', 'ji[2].Select(lambda mc: mc.phi())')
+
+# Most of the mlp stuff is going to come from a bunch of jet moments.
+# TODO: Add cut on clean LLP jet
+tuple_data = event_info \
+    .Select('lambda ji: ' + tc.gen_tuple())
+
+# Put it all together and turn it into a set of ROOT files (for now):
+ds = tuple_data \
+    .AsROOTFile(tc.col_names) \
+    .value()
+
+print (ds)

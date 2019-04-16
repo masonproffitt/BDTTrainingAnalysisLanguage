@@ -72,6 +72,26 @@ def get_ttree_type(rep):
     else:
         return rep.cpp_type()
 
+def determine_type_mf(parent_type, function_name):
+    '''
+    Determine the return type of the member function. Do our best to make
+    an intelligent case when we can.
+
+    parent_type:        the type of the parent
+    function_name:      the name of the function we are calling
+    '''
+    # If we don't know the type...
+    if parent_type is None:
+        raise BaseException("Internal Error: Trying to call member function for a type we do not know!")
+    # If we are doing one of the normal "terminals", then we can just bomb. This should not happen!
+    base_types = ['double', 'float', 'int']
+    s_parent_type = str(parent_type)
+    if s_parent_type in base_types:
+        raise BaseException("Unable to call method '{0}' on type '{1}'.".format(function_name, str(parent_type)))
+    
+    # Ok - we give up. Return a double.
+    return ctyp.terminal('double')
+
 class query_ast_visitor(ast.NodeVisitor):
     r"""
     Drive the conversion to C++ from the top level query
@@ -413,7 +433,8 @@ class query_ast_visitor(ast.NodeVisitor):
         if not isinstance(calling_against, crep.cpp_value):
             raise BaseException("Do not know how to call '{0}' on '{1}'".format(function_name, type(calling_against).__name__))
         c_stub = calling_against.as_cpp() + ("->" if calling_against.is_pointer() else ".")
-        self._result = crep.cpp_value(c_stub + function_name + "()", calling_against.scope(), ctyp.terminal("double"))
+        result_type = determine_type_mf(calling_against.cpp_type(), function_name)
+        self._result = crep.cpp_value(c_stub + function_name + "()", calling_against.scope(), result_type)
 
     def visit_function_ast(self, call_node):
         'Drop-in replacement for a function'

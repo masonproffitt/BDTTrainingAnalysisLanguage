@@ -51,6 +51,5 @@ class replace_LINQ_operators(ast.NodeTransformer):
             elif func_name == "First":
                 source = self.visit(node.func.value)
                 return query_ast.First(source)
-            else:
-                return self.generic_visit(node)
-        return node
+            # Fall through to process the inside in the next step.
+        return self.generic_visit(node)

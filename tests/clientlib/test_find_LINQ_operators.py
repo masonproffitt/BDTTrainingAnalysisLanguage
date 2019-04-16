@@ -13,7 +13,10 @@ from tests.clientlib.util_test_ast import *
 import ast
 import copy
 
-
+def get_ast(ast_in):
+    a_source = ast_in if isinstance(ast_in, ast.AST) else ast.parse(ast_in)
+    a_source_linq = replace_LINQ_operators().visit(a_source)
+    return a_source_linq    
 
 def util_process(ast_in, ast_out):
     'Make sure ast in is the same as out after running through - this is a utility routine for the harness'
@@ -38,3 +41,8 @@ def test_First_after_select():
 
 def test_First_after_sequence():
     util_process("event.Select(lambda x: (x.jets, x.tracks)).Select(lambda y: y[0].First())", "event.Select(lambda x: x.jets.First())")
+
+def test_First_in_func():
+    a = get_ast("abs(j.First())")
+    ast_s = ast.dump(a)
+    assert "First(source" in ast_s

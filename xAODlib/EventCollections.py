@@ -55,7 +55,7 @@ collections = [
     },
     {
         'function_name': "TruthParticles",
-        'include_files': ['xAODTruth/TruthParticleContainer.h'],
+        'include_files': ['xAODTruth/TruthParticleContainer.h', 'xAODTruth/TruthParticle.h', 'xAODTruth/TruthVertex.h'],
         'container_type': event_collection_collection('xAOD::TruthParticleContainer', 'xAOD::TruthParticle')
     },
 ]

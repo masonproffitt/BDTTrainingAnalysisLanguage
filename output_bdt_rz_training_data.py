@@ -1,6 +1,7 @@
 # Write out the training ntuple for doing the r (xy) and z training
 from clientlib.DataSets import EventDataSet
 from cpplib.math_utils import DeltaR
+import cpplib.cpp_types as ctyp
 
 class track_columns:
     def __init__(self):
@@ -36,7 +37,7 @@ event_info = events \
     .Select("lambda e: (e.EventInfo('EventInfo'), e.Jets('AntiKt4EMTopoJets'), e.TruthParticles('TruthParticles').Where(lambda tp1: tp1.pdgId() == 35))")
 # For the jet, grab the event info and the first LLP that is within 0.4 of the guy.
 jet_info = event_info \
-    .SelectMany('lambda ev: ev[1].Select(lambda j1: (ev[0], j1, ev[1].Where(lambda tp2: DeltaR(tp2.eta(), tp2.phi(), j1.eta(), j1.phi()) < 0.4)))')
+    .SelectMany('lambda ev: ev[1].Select(lambda j1: (ev[0], j1, ev[2].Where(lambda tp2: DeltaR(tp2.eta(), tp2.phi(), j1.eta(), j1.phi()) < 0.4)))')
 
 # Build us a list of columns
 tc = track_columns()
@@ -47,10 +48,12 @@ tc.add_col('JetPt', 'ji[1].pt()/1000.0')
 tc.add_col('JetEta', 'ji[1].eta()')
 
 # If it is signal, we can add a bunch of extra info
-# tc.add_col('IsLLP', 'ji[2].Count() > 0')
-# tc.add_col('Lx', '0 if ji[2].Count() == 0 else abs(ji[2].First().prodVtx().x()-ji[2].First().prodVtx().y())')
-# tc.add_col('Ly', '0 if ji[2].Count() == 0 else abs(ji[2].First().prodVtx().y()-ji[2].First().prodVtx().y())')
-# tc.add_col('Lz', '0 if ji[2].Count() == 0 else abs(ji[2].First().prodVtx().z()-ji[2].First().prodVtx().z())')
+tc.add_col('IsLLP', 'ji[2].Count() > 0')
+tc.add_col('LLP_Count', 'ji[2].Count()')
+ctyp.add_method_type_info("xAOD::TruthParticle", "prodVtx", ctyp.terminal('xAODTruth::TruthVertex', is_pointer=True))
+ctyp.add_method_type_info("xAOD::TruthParticle", "decayVtx", ctyp.terminal('xAODTruth::TruthVertex', is_pointer=True))
+for c in ['x', 'y', 'z']:
+    tc.add_col('L{0}'.format(c), '0 if ji[2].Count() == 0 else abs(ji[2].First().prodVtx().{0}()-ji[2].First().decayVtx().{0}())'.format(c))
 
 # The basic moments for the layer weights.
 add_sampling_layer ('EMM_BL0', 0, tc)

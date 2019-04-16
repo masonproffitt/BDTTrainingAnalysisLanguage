@@ -65,3 +65,10 @@ def test_first_object_in_event_with_where():
         .value()
     assert int(training_df.iloc[0]['FirstJetPt']) == 257
     assert len(training_df) == 2000
+
+def test_truth_particles():
+    training_df = f.AsATLASEvents() \
+        .Select("lambda e: e.TruthParticles('TruthParticles').Count()") \
+        .AsPandasDF('NTruthParticles') \
+        .value()
+    assert training_df.iloc[0]['NTruthParticles'] == 1557

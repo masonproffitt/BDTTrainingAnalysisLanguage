@@ -36,8 +36,8 @@ event_info = events \
         e.Jets('AntiKt4EMTopoJets'),
         e.TruthParticles('TruthParticles').Where(lambda tp1: abs(tp1.pdgId()) == 11 or abs(tp1.pdgId()) == 13),
         e.MissingET('MET_Core_AntiKt4EMTopo').First(),
-        e.Electrons("Electrons"),
-        e.Muons("Muons"),
+        e.Electrons("Electrons").Where(lambda ele: ele.pt()/1000.0 > 10),
+        e.Muons("Muons").Where(lambda mu: mu.pt()/1000.0 < 5000.0 and mu.pt()/1000.0 > 10.0),
         )
     ''')
 

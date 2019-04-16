@@ -1,5 +1,6 @@
 # Executor and code for the ATLAS xAOD input files
 from xAODlib.generated_code import generated_code
+from xAODlib.util_scope import deepest_scope
 import xAODlib.statement as statement
 from clientlib.ast_util import lambda_assure, lambda_body, lambda_unwrap
 from cpplib.cpp_vars import unique_name
@@ -512,14 +513,15 @@ class query_ast_visitor(ast.NodeVisitor):
         right = self.get_rep(node.right)
 
         # TODO: Turn this into a table lookup rather than the same thing repeated over and over
+        s = deepest_scope(left, right).scope()
         if type(node.op) is ast.Add:
-            r = crep.cpp_value("({0}+{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope(), left.cpp_type())
+            r = crep.cpp_value("({0}+{1})".format(left.as_cpp(), right.as_cpp()), s, left.cpp_type())
         elif type(node.op) is ast.Div:
-            r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope(), left.cpp_type())
+            r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), s, left.cpp_type())
         elif type(node.op) is ast.Sub:
-            r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope(), left.cpp_type())
+            r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), s, left.cpp_type())
         elif type(node.op) is ast.Mult:
-            r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), self._gc.current_scope(), left.cpp_type())
+            r = crep.cpp_value("({0}/{1})".format(left.as_cpp(), right.as_cpp()), s, left.cpp_type())
         else:
             raise BaseException("Binary operator {0} is not implemented.".format(type(node.op)))
 

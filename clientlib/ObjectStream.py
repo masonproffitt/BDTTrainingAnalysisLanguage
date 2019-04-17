@@ -6,11 +6,11 @@ import ast
 
 
 class ObjectStream:
-    def __init__(self, ast):
+    def __init__(self, the_ast):
         r"""
         Each node in an AST knows about its parent, so you can track all the way back.
         """
-        self._ast = ast
+        self._ast = the_ast
         pass
 
     def SelectMany(self, func):

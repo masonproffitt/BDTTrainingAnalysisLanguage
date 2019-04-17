@@ -132,7 +132,7 @@ class python_array_ast_visitor(ast.NodeVisitor):
             raise BaseException('unimplemented func call: ' + node.func)
 
     def visit_Select(self, node):
-        c = ast.Call(func=node.selection.body[0].value, args=[node.source])
+        c = ast.Call(node.selection, args=[node.source])
         node.rep = self.get_rep(c)
 
     def visit_SelectMany(self, node):

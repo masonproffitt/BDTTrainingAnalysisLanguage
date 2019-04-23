@@ -17,7 +17,7 @@ class awkward_array_executor(python_array_executor):
             data_pathname = self.dataset_source
         else:
             data_pathname = 'temp.awkd'
-            awkward.save(data_pathname, self.dataset_source)
+            awkward.save(data_pathname, self.dataset_source, mode='w')
         f = open('temp.py', 'w')
         f.write('import awkward\n')
         source = ast_node.source
@@ -31,8 +31,8 @@ class awkward_array_executor(python_array_executor):
             f.write(source.rep + " = input_file[input_file.keys()[0]].lazyarrays(namedecode='utf-8')\n")
         else:
             raise BaseException('unimplemented file type: ' + data_pathname)
-        f.write('output_array = awkward.fromiter(' + ast_node.rep + ')\n')
-        f.write("awkward.save('output.awkd', output_array)\n")
+        f.write('output_array = ' + ast_node.rep + '\n')
+        f.write("awkward.save('output.awkd', awkward.fromiter(output_array), mode='w')\n")
         f.close()
         os.system('python temp.py')
         if not isinstance(self.dataset_source, str):

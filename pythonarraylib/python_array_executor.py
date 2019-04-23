@@ -41,13 +41,22 @@ class python_array_ast_visitor(ast.NodeVisitor):
         node.rep = '[' + ''.join(self.get_rep(e) + ', ' for e in node.elts) + ']'
 
     def visit_Subscript(self, node):
-        node.rep = self.get_rep(node.value) + '[' + self.get_rep(node.slice.value) + ']'
+        node.rep = self.get_rep(node.value)
+        if self.get_rep(node.value) == 'base_array':
+            node.rep += '[:]'
+        if node.rep[-2:] == ':]':
+            node.rep = node.rep[:-1] + ','
+        else:
+            node.rep += '['
+        node.rep += self.get_rep(node.slice.value) + ']'
 
     def visit_UnaryOp(self, node):
         if isinstance(node.op, ast.UAdd):
             node.rep = '+'
         elif isinstance(node.op, ast.USub):
             node.rep = '-'
+        elif isinstance(node.op, ast.Not):
+            node.rep = '!'
         else:
             raise BaseException('unimplemented unary operation: ' + node.op)
         operand_rep = self.get_rep(node.operand)
@@ -67,6 +76,20 @@ class python_array_ast_visitor(ast.NodeVisitor):
         else:
             raise BaseException('unimplemented binary operation: ' + node.op)
         right_rep = self.get_rep(node.right)
+        node.rep += right_rep + ')'
+
+    def visit_BoolOp(self, node):
+        if len(node.values) != 2:
+            raise BaseException('unimplemented boolean operation')
+        left_rep = self.get_rep(node.values[0])
+        node.rep = '(' + left_rep
+        if isinstance(node.op, ast.And):
+            node.rep += ' and '
+        elif isinstance(node.op, ast.Or):
+            node.rep += ' or '
+        else:
+            raise BaseException('unimplemented boolean operation: ' + node.op)
+        right_rep = self.get_rep(node.values[1])
         node.rep += right_rep + ')'
 
     def visit_Compare(self, node):
@@ -99,6 +122,8 @@ class python_array_ast_visitor(ast.NodeVisitor):
         calling_against = self.get_rep(node.value)
         attr_name = node.attr
         node.rep = calling_against + "['" + attr_name + "']"
+        if calling_against == 'base_array':
+            node.rep += '[:]'
 
     def visit_Lambda(self, node):
         for c_arg, l_arg in zip(node.args, node.func.args.args):

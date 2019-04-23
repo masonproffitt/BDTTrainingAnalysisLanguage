@@ -6,7 +6,7 @@ from clientlib.ArrayStream import ArrayStream
 class NumpySourceStream(ast.AST):
     def __init__(self, dataset_source):
         self.dataset_source = dataset_source
-        self.rep = 'base_numpy_array'
+        self.rep = 'base_array'
 
     def get_executor(self):
         return numpy_array_executor(self.dataset_source)

@@ -1,7 +1,9 @@
 # Various node visitors to clean up nested function calls of various types.
+from clientlib.query_ast import Select, Where, SelectMany, First
+from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build, lambda_is_identity, lambda_test, lambda_is_true
+from clientlib.call_stack import argument_stack, stack_frame
+import copy
 import ast
-from clientlib.query_ast import Select, Where, SelectMany
-from clientlib.ast_util import lambda_body, lambda_body_replace, lambda_wrap, lambda_unwrap, lambda_call, lambda_build
 
 argument_var_counter = 0
 def arg_name():
@@ -16,14 +18,12 @@ def convolute(ast_g, ast_f):
     #TODO: fix up the ast.Calls to use lambda_call if possible
 
     # Sanity checks. For example, g can have only one input argument (e.g. f's result)
-    if (type(ast_g.body[0]) is not ast.Expr) or (type(ast_f.body[0]) is not ast.Expr):
-        raise BaseException("Only lambdas in Selects!")
-    if (type(ast_g.body[0].value) is not ast.Lambda) or (type(ast_f.body[0].value) is not ast.Lambda):
+    if (not lambda_test(ast_g)) or (not lambda_test(ast_f)):
         raise BaseException("Only lambdas in Selects!")
     
     # Combine the lambdas into a single call by calling g with f as an argument
-    l_g = ast_g.body[0].value
-    l_f = ast_f.body[0].value
+    l_g = copy.deepcopy(lambda_unwrap(ast_g))
+    l_f = copy.deepcopy(lambda_unwrap(ast_f))
 
     x = arg_name()
     f_arg = ast.Name(x, ast.Load())
@@ -34,7 +34,11 @@ def convolute(ast_g, ast_f):
     call_g_lambda = ast.Lambda(args=args, body=call_g)
 
     # Build a new call to nest the functions
-    return lambda_wrap(call_g_lambda)
+    return call_g_lambda
+
+def make_Select(source, selection):
+    'Make a select, and return source is selection is an identity'
+    return source if lambda_is_identity(selection) else Select(source, selection) 
 
 class simplify_chained_calls(ast.NodeTransformer):
     '''
@@ -44,7 +48,7 @@ class simplify_chained_calls(ast.NodeTransformer):
     '''
 
     def __init__(self):
-        self._arg_dict = {}
+        self._arg_stack = argument_stack()
 
     def visit_Select_of_Select(self, parent, selection):
         r'''
@@ -59,10 +63,10 @@ class simplify_chained_calls(ast.NodeTransformer):
 
         # Convolute the two functions
         # TODO: should this be generic of just visit?
-        new_selection = self.generic_visit(convolute(func_g, func_f))
+        new_selection = self.visit(convolute(func_g, func_f))
 
         # And return the parent select with the new selection function
-        return Select(parent.source, new_selection)
+        return make_Select(parent.source, new_selection)
 
     def visit_Select_of_SelectMany(self, parent, selection):
         r'''
@@ -75,7 +79,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         func_g = selection
         func_f = parent.selection
 
-        return self.visit(SelectMany(parent.source, lambda_body_replace(func_f, Select(lambda_body(func_f), func_g))))
+        return self.visit(SelectMany(parent.source, lambda_body_replace(func_f, make_Select(lambda_body(func_f), func_g))))
 
     def visit_Select(self, node):
         r'''
@@ -105,7 +109,8 @@ class simplify_chained_calls(ast.NodeTransformer):
         elif type(parent_select) is SelectMany:
             return self.visit_Select_of_SelectMany(parent_select, node.selection)
         else:
-            return Select(parent_select, self.visit(node.selection))
+            selection = self.visit(node.selection)
+            return make_Select(parent_select, selection)
 
     def visit_SelectMany_of_Select(self, parent, selection):
         '''
@@ -177,7 +182,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         func_g = filter
 
         arg = arg_name()
-        return self.visit(Where(parent.source, lambda_build(arg, ast.BoolOp(ast.And, [lambda_call(arg, func_f), lambda_call(arg, func_g)]))))
+        return self.visit(Where(parent.source, lambda_build(arg, ast.BoolOp(ast.And(), [lambda_call(arg, func_f), lambda_call(arg, func_g)]))))
 
     def visit_Where_of_Select(self, parent, filter):
         '''
@@ -192,7 +197,7 @@ class simplify_chained_calls(ast.NodeTransformer):
         seq = parent.source
 
         w = Where(seq, self.visit(convolute(func_g, func_f)))
-        s = Select(w, func_f)
+        s = make_Select(w, func_f)
 
         # Recursively visit this mess to see if the Where needs to move further up.
         return self.visit(s)
@@ -242,7 +247,11 @@ class simplify_chained_calls(ast.NodeTransformer):
         elif type(parent_where) is SelectMany:
             return self.visit_Where_of_SelectMany(parent_where, node.filter)
         else:
-            return Where(parent_where, self.visit(node.filter))
+            f = self.visit(node.filter)
+            if lambda_is_true(f):
+                return parent_where
+            else:
+                return Where(parent_where, f)
     
     def visit_Call(self, call_node):
         '''We are looking for cases where an argument is another function or expression.
@@ -251,18 +260,67 @@ class simplify_chained_calls(ast.NodeTransformer):
         '''
         if type(call_node.func) is ast.Lambda:
             arg_asts = [self.visit(a) for a in call_node.args]
-            for a_name, arg in zip(call_node.func.args.args, arg_asts):
-                # TODO: These have to be removed correctly (deal with common arg names!)
-                self._arg_dict[a_name.arg] = arg
-            # Now, evaluate the expression, and then lift it.
-            expr = self.visit(call_node.func.body)
-            return expr
+            with stack_frame(self._arg_stack):
+                for a_name, arg in zip(call_node.func.args.args, arg_asts):
+                    self._arg_stack.define_name(a_name.arg, arg)
+                # Now, evaluate the expression, and then lift it.
+                return self.visit(call_node.func.body)
         else:
-            call_node = self.generic_visit(call_node)
-        return call_node
+            return self.generic_visit(call_node)
+
+    def visit_Subscript_Tuple(self, v, s):
+        '''
+        (t1, t2, t3...)[1] => t2
+
+        Only works if index is a number
+        '''
+        if type(s.value) is not ast.Num:
+            return ast.Subscript(v, s, ast.Load())
+        n = s.value.n
+        if n >= len(v.elts):
+            raise BaseException("Attempt to access the {0}th element of a tuple only {1} values long.".format(n, len(v.value.elts)))
+
+        return v.elts[n]
+
+    def visit_Subscript_Of_First(self, first, s):
+        '''
+        Convert a seq.First()[0]
+        ==>
+        seq.Select(l: l[0]).First()
+
+        Other work will do the conversion as needed.
+        '''
+        source = first.source
+
+        # Build the select that starts from the source and does the slice.
+        a = arg_name()
+        select = make_Select(source, lambda_build(a, ast.Subscript(ast.Name(a, ast.Load()), s, ast.Load())))
+
+        return self.visit(First(select))
+
+    def visit_Subscript(self, node):
+        r'''
+        Simple Reduction
+        (t1, t2, t3...)[1] => t2
+
+        Move [] past a First()
+        seq.First()[0] => seq.Select(j: j[0]).First()
+        '''
+        v = self.visit(node.value)
+        s = self.visit(node.slice)
+        if type(v) is ast.Tuple:
+            return self.visit_Subscript_Tuple(v, s)
+
+        if type(v) is First:
+            return self.visit_Subscript_Of_First(v, s)
+
+        # Nothing interesting, so do the normal thing several levels down.
+        return ast.Subscript(v, s, ctx=ast.Load())
 
     def visit_Name(self, name_node):
         'Do lookup and see if we should translate or not.'
-        if name_node.id in self._arg_dict:
-            return self._arg_dict[name_node.id]
-        return name_node
+        return self._arg_stack.lookup_name(name_node.id, default=name_node)
+
+    def visit_Attribute(self, node):
+        'Make sure to make a new version of the Attribute so it does not get reused'
+        return ast.Attribute(value=self.visit(node.value), attr=node.attr, ctx=ast.Load())

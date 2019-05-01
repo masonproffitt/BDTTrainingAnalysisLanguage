@@ -126,7 +126,7 @@ def lambda_build(args, l_expr):
         args = [args]
     ast_args = ast.arguments(args=[ast.arg(arg=x) for x in args])
     call_lambda = ast.Lambda(args=ast_args, body=l_expr)
-    return lambda_wrap(call_lambda)
+    return call_lambda
 
 def lambda_body_replace(l, new_expr):
     '''
@@ -137,14 +137,14 @@ def lambda_body_replace(l, new_expr):
 
     Returns:
 
-    new_l: New lambda that looks just like the old one, other than the expression is new. If the old one was an ast.Module, so will this one be.
+    new_l: New lambda that looks just like the old one, other than the expression is new.
+            If the old one was an ast.Module, so will this one be. And the arguments are the
+            same - even the same names.
     '''
-    lb = l.body[0].value if type(l) is ast.Module else l
-    if type(lb) is not ast.Lambda:
-        raise BaseException('Attempt to get lambda expression body from {0}, which is not a lambda.'.format(type(l)))
+    lb = lambda_unwrap(l)
 
     new_l = ast.Lambda(lb.args, new_expr)
-    return lambda_wrap(new_l) if type(l) is ast.Module else l
+    return lambda_wrap(new_l) if type(l) is ast.Module else new_l
 
 def lambda_assure(east, nargs=None):
     r'''
@@ -159,9 +159,43 @@ def lambda_assure(east, nargs=None):
 
     return east
 
+def lambda_is_identity(l):
+    'Return true if this is a lambda with 1 argument that returns the argument'
+    if not lambda_test(l, 1):
+        return False
+    
+    b = lambda_unwrap(l)
+    if type(b.body) is not ast.Name:
+        return False
+    
+    a = b.args.args[0].arg
+    return a == b.body.id
 
-def lambda_test(east, nargs):
+def lambda_is_true(l):
+    'Return true if this lambda always returns true'
+    if not lambda_test(l):
+        return False
+    rl = lambda_unwrap(l)
+    if type(rl.body) is not ast.NameConstant:
+        return False
+
+    return rl.body.value == True
+    
+def lambda_test(l, nargs = None):
     r''' Test arguments
-    TODO: Either fill this in or eliminate it.
     '''
-    return True
+    if type(l) is not ast.Lambda:
+        if type(l) is not ast.Module:
+            return False
+        if len(l.body) != 1:
+            return False
+        if type (l.body[0]) is not ast.Expr:
+            return False
+        if type(l.body[0].value) is not ast.Lambda:
+            return False
+    rl = lambda_unwrap(l) if type(l) is ast.Module else l
+    if type(rl) is not ast.Lambda:
+        return False
+    if nargs == None:
+        return True
+    return len(lambda_unwrap(l).args.args) == nargs

@@ -15,7 +15,7 @@ class resultTTree(ast.AST):
         column_names - Names of each column to be written out. Each is a string.
         '''
         self.source = source
-        self.column_names = column_names
+        self.column_names = (column_names,) if type(column_names) == str else column_names
         self._fields = ('source',)
 
 class resultPandasDF(ast.AST):

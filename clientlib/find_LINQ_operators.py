@@ -1,7 +1,7 @@
 # In an AST replace LINQ operations with the proper
 # AST entries.
 import clientlib.query_ast as query_ast
-from clientlib.ast_util import lambda_wrap
+from clientlib.ast_util import lambda_unwrap
 import ast
 
 
@@ -17,8 +17,8 @@ def parse_ast (ast_text):
     ast: The python AST representing the function, with Select, SelectMany, etc., properly converted
          to function call AST's.
     '''
-    a = ast.parse(ast_text)
-    return replace_LINQ_operators().visit(a)
+    a = ast.parse(ast_text.strip())
+    return lambda_unwrap(replace_LINQ_operators().visit(a))
 
 class replace_LINQ_operators(ast.NodeTransformer):
     r'''
@@ -39,15 +39,17 @@ class replace_LINQ_operators(ast.NodeTransformer):
             if func_name == "Select":
                 source = self.visit(node.func.value)
                 selection = self.visit(node.args[0])
-                return query_ast.Select(source, lambda_wrap(selection))
+                return query_ast.Select(source, selection)
             elif func_name == "SelectMany":
                 source = self.visit(node.func.value)
                 selection = self.visit(node.args[0])
-                return query_ast.SelectMany(source, lambda_wrap(selection))
+                return query_ast.SelectMany(source, selection)
             elif func_name == "Where":
                 source = self.visit(node.func.value)
                 filter = self.visit(node.args[0])
                 return query_ast.Where(source, filter)
-            else:
-                return self.generic_visit(node)
-        return node
+            elif func_name == "First":
+                source = self.visit(node.func.value)
+                return query_ast.First(source)
+            # Fall through to process the inside in the next step.
+        return self.generic_visit(node)

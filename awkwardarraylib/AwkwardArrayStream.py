@@ -1,7 +1,7 @@
-# Event stream from awkward
-import ast
-from awkwardlib.awkward_array_executor import awkward_array_executor
+from awkwardarraylib.awkward_array_executor import awkward_array_executor
 from clientlib.ArrayStream import ArrayStream
+
+import ast
 
 class AwkwardSourceStream(ast.AST):
     def __init__(self, dataset_source):

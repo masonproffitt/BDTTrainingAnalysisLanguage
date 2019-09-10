@@ -1,4 +1,5 @@
-from pythonarraylib.python_array_executor import python_array_ast_visitor, python_array_executor
+from pythonarraylib.python_array_ast_visitor import python_array_ast_visitor
+from pythonarraylib.python_array_executor import python_array_executor
 
 import numpy
 

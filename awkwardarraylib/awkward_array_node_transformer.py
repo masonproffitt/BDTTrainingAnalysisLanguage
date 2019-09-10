@@ -1,0 +1,4 @@
+from pythonarraylib.python_array_node_transformer import python_array_node_transformer
+
+class awkward_array_node_transformer(python_array_node_transformer):
+    pass

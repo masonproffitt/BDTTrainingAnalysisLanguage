@@ -1,6 +1,6 @@
 # Code to help specify and work with datasets on the client end.
 from numpylib.NumpyArrayStream import NumpyArrayStream
-from awkwardlib.AwkwardArrayStream import AwkwardArrayStream
+from awkwardarraylib.AwkwardArrayStream import AwkwardArrayStream
 from xAODlib.AtlasEventStream import AtlasEventStream
 
 # Bring in all the machinery to process xAOD files. This adds

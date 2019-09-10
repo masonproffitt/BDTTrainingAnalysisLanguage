@@ -1,18 +1,23 @@
-from pythonarraylib.python_array_executor import python_array_ast_visitor, python_array_executor
+from pythonarraylib.python_array_executor import python_array_executor
+
+from awkwardarraylib.awkward_array_node_transformer import awkward_array_node_transformer
+from awkwardarraylib.awkward_array_ast_visitor import awkward_array_ast_visitor
 
 import awkward
 
 import ast
 import os
 
-class ast_visitor(python_array_ast_visitor):
-    pass
-
 class awkward_array_executor(python_array_executor):
+    def apply_ast_transformations(self, tree):
+        print(ast.dump(tree))
+        return awkward_array_node_transformer().visit(tree)
+
     def evaluate(self, ast_node):
-        qv = ast_visitor()
-        #print(ast.dump(ast_node))
+        print(ast.dump(ast_node))
+        qv = awkward_array_ast_visitor()
         qv.visit(ast_node)
+        print(ast.dump(ast_node))
         if isinstance(self.dataset_source, str):
             data_pathname = self.dataset_source
         else:
@@ -32,12 +37,12 @@ class awkward_array_executor(python_array_executor):
         else:
             raise BaseException('unimplemented file type: ' + data_pathname)
         f.write('output_array = ' + ast_node.rep + '\n')
-        f.write("awkward.save('output.awkd', awkward.fromiter(output_array), mode='w')\n")
+        f.write("awkward.save('output.awkd', output_array, mode='w')\n")
         f.close()
         os.system('python temp.py')
         if not isinstance(self.dataset_source, str):
             os.remove(data_pathname)
-        os.remove('temp.py')
+        #os.remove('temp.py')
         output = awkward.load('output.awkd')
         os.remove('output.awkd')
         return output

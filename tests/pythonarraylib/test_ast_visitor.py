@@ -3,6 +3,8 @@ from pythonarraylib.python_array_ast_visitor import python_array_ast_visitor
 import ast
 
 def get_roundtrip_string(string):
+'''Takes a string, turns it into an AST, and gets the representation via the
+   node visitor. Ideally the return value should be equal to the input.'''
   visitor = python_array_ast_visitor()
   return visitor.get_rep(ast.parse(string))
 
@@ -36,7 +38,7 @@ def test_empty_Dict():
 def test_nonempty_Dict():
   check_roundtrip_string("{'a': 1, 'b': 2, 'c': 3}")
 
-def test_empty_NameConstant():
+def test_NameConstant():
   check_roundtrip_string('None')
 
 def test_UnaryOp():

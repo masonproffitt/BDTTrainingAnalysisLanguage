@@ -3,6 +3,8 @@ from awkwardarraylib.awkward_array_ast_visitor import awkward_array_ast_visitor
 import ast
 
 def get_roundtrip_string(string):
+  '''Takes a string, turns it into an AST, and gets the representation via the
+     node visitor. Ideally the return value should be equal to the input.'''
   visitor = awkward_array_ast_visitor()
   return visitor.get_rep(ast.parse(string))
 

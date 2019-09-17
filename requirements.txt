@@ -2,4 +2,5 @@ uproot
 awkward
 numpy
 jinja2
+pandas
 pytest

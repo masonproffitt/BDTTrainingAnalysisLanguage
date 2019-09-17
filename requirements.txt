@@ -1,0 +1,5 @@
+uproot
+awkward
+numpy
+jinja2
+pytest

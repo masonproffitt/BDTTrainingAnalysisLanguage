@@ -10,14 +10,14 @@ import os
 
 class awkward_array_executor(python_array_executor):
     def apply_ast_transformations(self, tree):
-        print(ast.dump(tree))
+        #print(ast.dump(tree))
         return awkward_array_node_transformer().visit(tree)
 
     def evaluate(self, ast_node):
-        print(ast.dump(ast_node))
+        #print(ast.dump(ast_node))
         qv = awkward_array_ast_visitor()
         qv.visit(ast_node)
-        print(ast.dump(ast_node))
+        #print(ast.dump(ast_node))
         if isinstance(self.dataset_source, str):
             data_pathname = self.dataset_source
         else:
@@ -42,7 +42,7 @@ class awkward_array_executor(python_array_executor):
         os.system('python temp.py')
         if not isinstance(self.dataset_source, str):
             os.remove(data_pathname)
-        #os.remove('temp.py')
+        os.remove('temp.py')
         output = awkward.load('output.awkd')
         os.remove('output.awkd')
         return output

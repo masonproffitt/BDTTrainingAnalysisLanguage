@@ -1,4 +1,4 @@
-import clientlib.query_ast
+from clientlib.query_ast import Select
 
 import ast
 
@@ -74,14 +74,18 @@ class python_array_ast_visitor(ast.NodeVisitor):
         return node
 
     def visit_Tuple(self, node):
-        node.rep = '(' + ', '.join(self.get_rep(element) for element in node.elts) + ',)'
+        node.rep = '(' + ', '.join(self.get_rep(element) for element in node.elts) + (')' if len(node.elts) != 1 else ',)')
         return node
 
     def visit_Dict(self, node):
         node.rep = '{' + ', '.join(self.get_rep(key) + ': ' + self.get_rep(value) for key, value in zip(node.keys, node.values)) + '}'
         return node
 
-    def get_globals():
+    def visit_NameConstant(self, node):
+        node.rep = str(node.value)
+        return node
+
+    def get_globals(self):
         raise NotImplementedError("Pure virtual function")
 
     def resolve_id(self, id):
@@ -182,6 +186,20 @@ class python_array_ast_visitor(ast.NodeVisitor):
         node.rep = func_rep + '(' + args_rep + ')'
         return node
 
+    def visit_Module(self, node):
+        if len(node.body) == 0:
+            node.rep = ''
+            return node
+        elif len(node.body) == 1:
+            node.rep = self.get_rep(node.body[0])
+            return node.body[0]
+        else:
+            raise TypeError('Module node has nonstandard body of length > 1')
+
+    def visit_Expr(self, node):
+        node.rep = self.get_rep(node.value)
+        return node.value
+
     def visit_Select(self, node):
         raise NotImplementedError("Pure virtual function")
 
@@ -189,7 +207,7 @@ class python_array_ast_visitor(ast.NodeVisitor):
         if not hasattr(node, 'axis'):
             node.source = self.visit(node.source)
             node.axis = node.source.axis
-        select_node = query_ast.Select(node.source, node.selection)
+        select_node = Select(node.source, node.selection)
         call_node = self.visit(ast.Call(ast.Attribute(select_node, 'flatten'), []))
         node.rep = self.get_rep(call_node)
         return node

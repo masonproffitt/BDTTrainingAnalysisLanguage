@@ -13,7 +13,7 @@ class awkward_array_ast_visitor(python_array_ast_visitor):
         if type(node.selection) is not ast.Lambda:
             raise TypeError('Argument to Select() must be a lambda function, found ' + node.selection)
         if len(node.selection.args.args) != 1:
-            raise TypeError('Lambda function in Select() must have exactly one argument, found ' + len(node.selection.args.args))
+            raise TypeError('Lambda function in Select() must have exactly one argument, found ' + str(len(node.selection.args.args)))
         if type(node.selection.body) in (ast.List, ast.Tuple):
             node.selection.body = ast.Call(ast.Attribute(ast.Name('awkward'), 'Table'), node.selection.body.elts)
         if type(node.selection.body) is ast.Dict:
@@ -30,8 +30,11 @@ class awkward_array_ast_visitor(python_array_ast_visitor):
         if not hasattr(node, 'axis'):
             node.source = self.visit(node.source)
             node.axis = node.source.axis
+        if node.axis == 0:
+            node.rep = 'len(' + self.get_rep(node.source) + ')'
+        else:
+            node.rep = self.get_rep(node.source) + '.count()'
         node.axis -= 1
-        node.rep = self.get_rep(node.source) + '.count()'
         return node
 
     def visit_Min(self, node):

@@ -30,7 +30,7 @@ Above all, this is an experiment. It is based off many things learned in the [LI
 
 Platform requirements:
 
-- Python 3.7 (not sure exactly what version, but this is the version it was developed under)
+- Python 3.7
 - Docker (really should move to singularity if possible)
 - pip install uproot jinja2 pandas
   - jinja2 and pandas are already part of anaconda3

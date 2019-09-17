@@ -51,5 +51,20 @@ class replace_LINQ_operators(ast.NodeTransformer):
             elif func_name == "First":
                 source = self.visit(node.func.value)
                 return query_ast.First(source)
+            elif func_name == "Count":
+                source = self.visit(node.func.value)
+                return query_ast.Count(source)
+            elif func_name == "Min":
+                source = self.visit(node.func.value)
+                return query_ast.Min(source)
+            elif func_name == "Max":
+                source = self.visit(node.func.value)
+                return query_ast.Max(source)
+            elif func_name == "Sum":
+                source = self.visit(node.func.value)
+                return query_ast.Sum(source)
+            elif func_name == "Average":
+                source = self.visit(node.func.value)
+                return query_ast.Average(source)
             # Fall through to process the inside in the next step.
         return self.generic_visit(node)

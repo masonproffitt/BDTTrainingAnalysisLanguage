@@ -1,3 +1,5 @@
+import clientlib.query_ast
+
 import ast
 
 unary_op_dict = {ast.UAdd: '+',
@@ -37,16 +39,20 @@ class python_array_ast_visitor(ast.NodeVisitor):
         self._id_scopes = {}
 
     def visit(self, node):
+        if hasattr(node, 'axis'):
+            for field_name in node._fields:
+                if hasattr(node, field_name):
+                    field = getattr(node, field_name)
+                    if isinstance(field, ast.AST) and not hasattr(field, 'axis'):
+                        field.axis = node.axis
+                    elif isinstance(field, list):
+                        for element in field:
+                            if isinstance(element, ast.AST) and not hasattr(element, 'axis'):
+                                element.axis = node.axis
         if hasattr(node, 'rep'):
             return node
         else:
             return ast.NodeVisitor.visit(self, node)
-
-    def generic_visit(self, node):
-        if hasattr(node, 'rep'):
-            return node
-        else:
-            return ast.NodeVisitor.generic_visit(self, node)
 
     def get_rep(self, node):
         if node is None:
@@ -144,6 +150,8 @@ class python_array_ast_visitor(ast.NodeVisitor):
     def visit_Subscript(self, node):
         value_rep = self.get_rep(node.value)
         slice_rep = self.get_rep(node.slice)
+        if not isinstance(node.slice, ast.Index) or isinstance(node.slice.value, ast.Num):
+            slice_rep = ':, ' * node.axis + slice_rep
         node.rep = value_rep + '[' + slice_rep + ']'
         return node
 
@@ -178,7 +186,11 @@ class python_array_ast_visitor(ast.NodeVisitor):
         raise NotImplementedError("Pure virtual function")
 
     def visit_SelectMany(self, node):
-        call_node = self.visit(ast.Call(ast.Attribute(node, 'flatten')))
+        if not hasattr(node, 'axis'):
+            node.source = self.visit(node.source)
+            node.axis = node.source.axis
+        select_node = query_ast.Select(node.source, node.selection)
+        call_node = self.visit(ast.Call(ast.Attribute(select_node, 'flatten'), []))
         node.rep = self.get_rep(call_node)
         return node
 
@@ -187,7 +199,36 @@ class python_array_ast_visitor(ast.NodeVisitor):
             raise TypeError('Argument to Where() must be a lambda function, found ' + node.filter)
         if len(node.filter.args.args) != 1:
             raise TypeError('Lambda function in Where() must have exactly one argument, found ' + len(node.filter.args.args))
+        if not hasattr(node, 'axis'):
+            node.source = self.visit(node.source)
+            node.axis = node.source.axis
+        node.filter.axis = node.axis + 1
         node.filter.body = ast.Subscript(ast.Name(node.filter.args.args[0].arg), ast.Index(node.filter.body))
         call_node = self.visit(ast.Call(node.filter, [node.source]))
         node.rep = self.get_rep(call_node)
         return node
+
+    def visit_First(self, node):
+        if not hasattr(node, 'axis'):
+            node.source = self.visit(node.source)
+            node.axis = node.source.axis
+        subscript_node = ast.Subscript(node.source, ast.Index(ast.Num(n=0)))
+        subscript_node.axis = node.axis
+        node.axis -= 1
+        node.rep = self.get_rep(subscript_node)
+        return node
+
+    def visit_Count(self, node):
+        raise NotImplementedError("Pure virtual function")
+
+    def visit_Min(self, node):
+        raise NotImplementedError("Pure virtual function")
+
+    def visit_Max(self, node):
+        raise NotImplementedError("Pure virtual function")
+
+    def visit_Sum(self, node):
+        raise NotImplementedError("Pure virtual function")
+
+    def visit_Average(self, node):
+        raise NotImplementedError("Pure virtual function")

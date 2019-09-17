@@ -13,6 +13,14 @@ class ObjectStream:
         self._ast = the_ast
         pass
 
+    def Select(self, f):
+        r"""
+        User wants to transform a single object at a time in this stream.
+
+        f - selection function
+        """
+        return ObjectStream(query_ast.Select(self._ast, parse_ast(f)))
+
     def SelectMany(self, func):
         r"""
         The user wants to unroll a collection. This func needs to:
@@ -23,19 +31,23 @@ class ObjectStream:
         """
         return ObjectStream(query_ast.SelectMany(self._ast, parse_ast(func)))
 
-    def Select(self, f):
-        r"""
-        User wants to transform a single object at a time in this stream.
-
-        f - selection function
-        """
-        return ObjectStream(query_ast.Select(self._ast, parse_ast(f)))
-
     def Where(self, filter_lambda):
         r'''
         User wants to filter the sequence at the top level.
         '''
         return ObjectStream(query_ast.Where(self._ast, parse_ast(filter_lambda)))
+
+    def First(self):
+        r'''
+        User wants to select the first element in the sequence at the top level.
+        '''
+        return ObjectStream(query_ast.First(self._ast))
+
+    def Count(self):
+        r'''
+        User wants the length of the sequence at the top level.
+        '''
+        return ObjectStream(query_ast.Count(self._ast))
 
     def AsPandasDF(self, columns=[]):
         r"""

@@ -11,24 +11,6 @@ import ast
 
 ###############################
 # First, the sequences
-class SelectMany(ast.AST):
-    r"""
-    AST node for SelectMany. A selection function picks out
-    a collection, and then one iterates over that collection.
-    """
-
-    def __init__(self, source = None, selection_function = None):
-        r"""
-        AST node that represents a SelectMany operation. It's resulting type is an iterator
-        over the collection selected by ``selection_function``.
-
-        source - An AST that represents the source iterator.
-        selection_function - A lambda that selects a collection to iterate over when applied to source.
-        """
-        self.source = source
-        self.selection = selection_function
-        self._fields = ['source', 'selection']
-
 
 class Select(ast.AST):
     r"""
@@ -48,6 +30,24 @@ class Select(ast.AST):
         self.selection = select_function
         self.source = source
         self._fields = ('source', 'selection')
+
+class SelectMany(ast.AST):
+    r"""
+    AST node for SelectMany. A selection function picks out
+    a collection, and then one iterates over that collection.
+    """
+
+    def __init__(self, source = None, selection_function = None):
+        r"""
+        AST node that represents a SelectMany operation. It's resulting type is an iterator
+        over the collection selected by ``selection_function``.
+
+        source - An AST that represents the source iterator.
+        selection_function - A lambda that selects a collection to iterate over when applied to source.
+        """
+        self.source = source
+        self.selection = selection_function
+        self._fields = ['source', 'selection']
 
 class Where(ast.AST):
     r'''
@@ -69,6 +69,7 @@ class Where(ast.AST):
         self._fields = ('source', 'filter')
 
 # The terminals
+
 class First(ast.AST):
     r'''
     AST Node for taking the first element of a sequence. Returns the object for use, and also pops the sequence
@@ -79,6 +80,68 @@ class First(ast.AST):
         r'''
         Initialize the First AST node.
 
+        source - AST of the source sequence.
+        '''
+        self.source = source
+        self._fields= ('source',)
+
+# Aggregates
+
+class Count(ast.AST):
+    r'''
+    AST Node for counting the length of a sequence.
+    '''
+
+    def __init__ (self, source = None):
+        r'''
+        source - AST of the source sequence.
+        '''
+        self.source = source
+        self._fields= ('source',)
+
+class Min(ast.AST):
+    r'''
+    AST Node for returning the minimum of a sequence.
+    '''
+
+    def __init__ (self, source = None):
+        r'''
+        source - AST of the source sequence.
+        '''
+        self.source = source
+        self._fields= ('source',)
+
+class Max(ast.AST):
+    r'''
+    AST Node for returning the maximum of a sequence.
+    '''
+
+    def __init__ (self, source = None):
+        r'''
+        source - AST of the source sequence.
+        '''
+        self.source = source
+        self._fields= ('source',)
+
+class Sum(ast.AST):
+    r'''
+    AST Node for returning the sum of a sequence.
+    '''
+
+    def __init__ (self, source = None):
+        r'''
+        source - AST of the source sequence.
+        '''
+        self.source = source
+        self._fields= ('source',)
+
+class Average(ast.AST):
+    r'''
+    AST Node for returning the average of a sequence.
+    '''
+
+    def __init__ (self, source = None):
+        r'''
         source - AST of the source sequence.
         '''
         self.source = source

@@ -7,6 +7,7 @@ class AwkwardSourceStream(ast.AST):
     def __init__(self, dataset_source):
         self.dataset_source = dataset_source
         self.rep = 'base_array'
+        self.axis = 0
 
     def get_executor(self):
         return awkward_array_executor(self.dataset_source)
